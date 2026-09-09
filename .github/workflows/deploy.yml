@@ -12,6 +12,7 @@ concurrency:
 env:
   PROJECT: jeconcept-stock
   D1_NAME: besteltool
+  CUSTOM_DOMAIN: stock.jeconcept.be
 
 jobs:
   test:
@@ -77,6 +78,13 @@ jobs:
           ACCESS_AUD: ${{ secrets.ACCESS_AUD }}
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
         run: python3 .github/scripts/cloudflare.py
+
+      - name: Eigen domein koppelen (idempotent)
+        continue-on-error: true
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python3 .github/scripts/custom_domain.py
 
       - name: Publiceren
         env:
