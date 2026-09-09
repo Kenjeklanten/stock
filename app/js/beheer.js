@@ -1,6 +1,7 @@
 // Beheerscherm. Alles hangt aan het bedrijf dat bovenaan gekozen is: producten met hun
 // basisstock per locatie, locaties, leveranciers, import/export en de bedrijfsgegevens zelf.
 import { api, toast, fmt, num, el, clear, qs, qsa, mountHeader, plural } from './app.js';
+import { readWorkbook, interpretBestellijst, interpretPerLocation, looksPerLocation } from './xlsx-read.js';
 
 const state = {
   companyId: null, company: null, locations: [], suppliers: [], products: [], companies: [],
@@ -243,28 +244,87 @@ function crudTable({ title, endpoint, items, columns, newLabel, withCompany = tr
 
 function renderImport(panel) {
   const area = el('textarea', { class: 'code-area', placeholder: 'Plak hier de inhoud van je CSV-bestand…' });
-  const file = el('input', { type: 'file', accept: '.csv,text/csv,text/plain' });
+  const file = el('input', { type: 'file', accept: '.xlsx,.csv,text/csv,text/plain' });
   const out = el('div', {});
   const preview = el('button', { class: 'btn btn--ghost', text: 'Controleren' });
   const apply = el('button', { class: 'btn', text: 'Importeren', disabled: true });
+  const values = el('select', {}, [
+    el('option', { value: 'base', text: 'De getallen zijn de basisstock' }),
+    el('option', { value: 'ignore', text: 'Alleen producten en locaties overnemen' }),
+  ]);
+  const valuesRow = el('div', { class: 'f-16 hidden' }, [el('label', { text: 'Wat staat er in de cijferkolom?' }), values]);
+
+  let workbook = null;    // ingelezen tabbladen uit een xlsx
+
+  const summary = (parsed, shape) => {
+    const locaties = new Set();
+    let waarden = 0;
+    let producten = 0;
+    for (const supplier of parsed.suppliers) {
+      for (const name of supplier.locations || []) locaties.add(name);
+      producten += supplier.products.length;
+      for (const product of supplier.products) waarden += Object.keys(product.values || {}).length;
+    }
+    return el('div', { class: 'notice' }, [
+      el('b', { text: shape === 'per-locatie' ? 'Werkboek met één tabblad per locatie' : 'Werkboek in de vorm van de bestellijst' }),
+      el('ul', {}, [
+        el('li', { text: `Leveranciers: ${parsed.suppliers.map((s) => s.name || 'zonder leverancier').join(', ')}` }),
+        el('li', { text: `Locaties: ${[...locaties].join(', ') || 'geen'}` }),
+        el('li', { text: `${plural(producten, 'product', 'producten')} met ${waarden} ingevulde waarden` }),
+      ]),
+      ...(parsed.warnings || []).slice(0, 8).map((w) => el('p', { class: 'small', text: `⚠ ${w}` })),
+      el('p', { class: 'small muted', text: 'Klik op Controleren om te zien wat er zou veranderen; pas daarna Importeren.' }),
+    ]);
+  };
 
   file.addEventListener('change', async () => {
-    const f = file.files && file.files[0];
-    if (!f) return;
-    area.value = await f.text();
-    toast(`${f.name} ingelezen — klik op Controleren.`);
+    const chosen = file.files && file.files[0];
+    if (!chosen) return;
+    workbook = null;
+    valuesRow.classList.add('hidden');
+    apply.disabled = true;
+    clear(out);
+
+    if (!/\.xlsx$/i.test(chosen.name)) {
+      area.value = await chosen.text();
+      toast(`${chosen.name} ingelezen — klik op Controleren.`);
+      return;
+    }
+    try {
+      const sheets = await readWorkbook(chosen);
+      const perLocation = looksPerLocation(sheets);
+      const parsed = perLocation
+        ? interpretPerLocation(sheets, { knownSuppliers: state.suppliers.map((s) => s.name) })
+        : interpretBestellijst(sheets);
+      if (!parsed.suppliers.length) throw new Error('Geen bruikbare tabbladen gevonden in dit bestand.');
+      workbook = parsed;
+      values.value = perLocation ? 'base' : 'ignore';
+      valuesRow.classList.remove('hidden');
+      area.value = '';
+      out.append(summary(parsed, perLocation ? 'per-locatie' : 'bestellijst'));
+    } catch (err) {
+      toast(err.message, true);
+    }
   });
 
   const run = async (mode) => {
-    if (!area.value.trim()) return toast('Plak eerst een CSV of kies een bestand.', true);
+    const body = { company_id: state.companyId, mode };
+    if (workbook) {
+      body.sheets = workbook.suppliers;
+      body.values = values.value;
+    } else if (area.value.trim()) {
+      body.csv = area.value;
+    } else {
+      return toast('Kies een bestand of plak een CSV.', true);
+    }
     try {
-      const res = await api('/api/admin/import', { method: 'POST', body: { company_id: state.companyId, csv: area.value, mode } });
+      const res = await api('/api/admin/import', { method: 'POST', body });
       const r = res.report;
       clear(out).append(el('div', { class: res.preview ? 'notice' : 'notice notice--ok' }, [
         el('b', { text: res.preview ? `Voorbeeld voor ${r.company} — er is nog niets gewijzigd` : `Import uitgevoerd voor ${r.company}` }),
         el('ul', {}, [
           el('li', { text: `${plural(r.rows, 'productrij', 'productrijen')}: ${r.products_new} nieuw, ${r.products_updated} bijgewerkt` }),
-          el('li', { text: `Locatiekolommen: ${r.locations_used.join(', ') || 'geen'}${r.locations_new.length ? ` (nieuw: ${r.locations_new.join(', ')})` : ''}` }),
+          el('li', { text: `Locaties: ${r.locations_used.join(', ') || 'geen'}${r.locations_new.length ? ` (nieuw: ${r.locations_new.join(', ')})` : ''}` }),
           el('li', { text: `Nieuwe leveranciers: ${r.suppliers_new.join(', ') || 'geen'}` }),
           el('li', { text: `${r.par_rows} basisstock-waarden` }),
         ]),
@@ -275,20 +335,25 @@ function renderImport(panel) {
     } catch (err) { toast(err.message, true); }
   };
   preview.addEventListener('click', () => run('preview'));
-  apply.addEventListener('click', () => { if (confirm(`De catalogus van ${state.company ? state.company.name : 'dit bedrijf'} bijwerken met deze CSV?`)) run('apply'); });
+  apply.addEventListener('click', () => { if (confirm(`De catalogus van ${state.company ? state.company.name : 'dit bedrijf'} bijwerken?`)) run('apply'); });
 
   panel.append(
     el('section', { class: 'card' }, [
       el('h2', { text: `Catalogus importeren voor ${state.company ? state.company.name : '—'}` }),
-      el('p', { class: 'small muted', text: 'Kolommen: Product · Artikelnummer · Eenheid · Verpakking · Verpakkingsnaam · Categorie · Leverancier. Elke extra kolom is een locatie; de waarde in die kolom is de basisstock voor die locatie. Een lege cel betekent dat het product niet in die locatie staat. Onbekende locaties en leveranciers worden binnen dit bedrijf aangemaakt.' }),
+      el('p', { class: 'small muted', text: 'Twee vormen worden herkend. (1) Een Excel-bestand met één tabblad per locatie, met de producten in kolom A en een kolom "Begin Stock" — dat is de stocktelling zoals ze vandaag gebruikt wordt. (2) Een CSV of Excel in de vorm van de bestellijst: één tabblad per leverancier met de locaties als kolommen. Onbekende locaties, leveranciers en producten worden binnen dit bedrijf aangemaakt.' }),
       el('div', { class: 'my-1' }, [file]),
-      area,
+      valuesRow,
+      el('details', { class: 'mt-1' }, [
+        el('summary', { text: 'Of een CSV plakken' }),
+        el('p', { class: 'small muted mt-1', text: 'Kolommen: Product · Artikelnummer · Eenheid · Verpakking · Verpakkingsnaam · Categorie · Leverancier, gevolgd door één kolom per locatie met de basisstock.' }),
+        area,
+      ]),
       el('div', { class: 'row mt-1' }, [preview, apply]),
       out,
     ]),
     el('section', { class: 'card' }, [
       el('h2', { text: 'Catalogus exporteren' }),
-      el('p', { class: 'small muted', text: 'Zelfde kolommen als de import: pas het bestand aan in Excel en importeer het opnieuw.' }),
+      el('p', { class: 'small muted', text: 'Zelfde kolommen als de CSV-import: aanpassen in Excel en opnieuw importeren.' }),
       el('a', { class: 'btn btn--ghost mt-1', href: `/api/admin/export?company_id=${state.companyId}`, text: 'Producten + basisstock (CSV)' }),
     ]),
   );

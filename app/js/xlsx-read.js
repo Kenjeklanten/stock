@@ -227,3 +227,104 @@ export function interpretBestellijst(sheets) {
 
   return { suppliers, warnings };
 }
+
+/* ---------- tweede vorm: per locatie een tabblad ---------- */
+
+const VALUE_HEADERS = {
+  base: ['begin stock', 'basisstock', 'beginstock', 'norm', 'gewenste stock'],
+  counted: ['telling stock', 'geteld', 'telling'],
+  order: ['te bestellen', 'bestellen'],
+};
+
+/**
+ * Leest een werkboek waarin elk tabblad één locatie is (zoals de stocktelling van STVV):
+ * kolom A bevat de producten, met daartussen kopregels voor de leverancier (AB INBEV,
+ * DIESTPACK, …) en de categorie (PET, Extra:). Eén kolom draagt de waarden — standaard
+ * "Begin Stock", dus de basisstock.
+ *
+ * Geeft dezelfde vorm terug als interpretBestellijst, zodat de import er niets van merkt:
+ *   { suppliers: [{ name, locations, products: [{ name, category, values: { locatie: getal } }] }], warnings }
+ */
+export function interpretPerLocation(sheets, { column = 'base', knownSuppliers = [] } = {}) {
+  const warnings = [];
+  const wanted = (VALUE_HEADERS[column] || VALUE_HEADERS.base).map(norm);
+  const key = (v) => norm(v).replace(/[^a-z0-9]/g, '');
+  const supplierSet = new Set(knownSuppliers.map(key));
+
+  /** Een kopregel is een leverancier of een categorie, geen product. */
+  const isSection = (label) => {
+    const text = String(label).trim();
+    if (supplierSet.has(key(text))) return true;
+    if (/[:.]$/.test(text)) return true;
+    // ALLES IN HOOFDLETTERS is bij hen een leverancier of een blok (PET, EXTRA)
+    return /[A-Z]/.test(text) && text === text.toUpperCase() && !/\d/.test(text);
+  };
+
+  const bySupplier = new Map();
+  const locations = [];
+
+  for (const sheet of sheets) {
+    const cell = (r, c) => sheet.grid.get(`${r},${c}`);
+    let valueCol = null;
+    let start = null;
+    for (let r = 1; r <= Math.min(sheet.rows, 12) && valueCol === null; r++) {
+      for (let c = 1; c <= sheet.cols; c++) {
+        const v = cell(r, c);
+        if (typeof v === 'string' && wanted.includes(norm(v))) { valueCol = c; start = r + 1; break; }
+      }
+    }
+    if (valueCol === null) {
+      warnings.push(`Tabblad "${sheet.name}": geen kolom "${VALUE_HEADERS[column][0]}" gevonden — overgeslagen.`);
+      continue;
+    }
+
+    const location = String(sheet.name).trim();
+    if (!locations.includes(location)) locations.push(location);
+
+    let supplier = '';
+    let category = '';
+    let found = 0;
+    for (let r = start; r <= sheet.rows; r++) {
+      const label = cell(r, 1);
+      if (typeof label !== 'string' || !label.trim()) continue;
+      const name = label.trim();
+      if (key(name) === key(location) || SKIP_A.has(norm(name))) continue;
+
+      if (isSection(name)) {
+        if (supplierSet.has(key(name))) { supplier = name; category = ''; }
+        else category = name.replace(/[:.]$/, '').trim();
+        continue;
+      }
+
+      if (!bySupplier.has(key(supplier))) bySupplier.set(key(supplier), { name: supplier, locations: [], products: new Map() });
+      const group = bySupplier.get(key(supplier));
+      if (!group.locations.includes(location)) group.locations.push(location);
+      if (!group.products.has(key(name))) group.products.set(key(name), { name, category, values: {} });
+      const product = group.products.get(key(name));
+      if (!product.category && category) product.category = category;
+
+      const value = cell(r, valueCol);
+      if (typeof value === 'number') { product.values[location] = value; found++; }
+    }
+    if (!found) warnings.push(`Tabblad "${sheet.name}": geen enkel getal in de kolom "${VALUE_HEADERS[column][0]}".`);
+  }
+
+  const suppliers = [...bySupplier.values()].map((g) => ({
+    name: g.name,
+    locations: g.locations,
+    products: [...g.products.values()],
+  }));
+  if (!suppliers.length) warnings.push('Geen bruikbare tabbladen gevonden.');
+  return { suppliers, warnings, locations };
+}
+
+/** Ziet het werkboek eruit als een telling per locatie (kolom "Begin Stock")? */
+export const looksPerLocation = (sheets) => sheets.some((sheet) => {
+  for (let r = 1; r <= Math.min(sheet.rows, 12); r++) {
+    for (let c = 1; c <= sheet.cols; c++) {
+      const v = sheet.grid.get(`${r},${c}`);
+      if (typeof v === 'string' && [...VALUE_HEADERS.base, ...VALUE_HEADERS.counted].some((w) => norm(v) === norm(w))) return true;
+    }
+  }
+  return false;
+});
