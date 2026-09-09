@@ -1,0 +1,33 @@
+# Wekelijkse veiligheidskopie van de databank naar R2.
+#
+# Elke maandagochtend komt er een verse export in de bucket, plus een kopie onder
+# 'laatste.sql'. Terugzetten gaat met:
+#   npx wrangler d1 execute besteltool --remote --file=laatste.sql
+#
+# Het API-token heeft hiervoor 'R2: Edit' nodig naast de rechten voor Pages en D1.
+# Ontbreekt dat, dan stopt de workflow met een duidelijke melding.
+name: Back-up databank
+
+on:
+  schedule:
+    - cron: '15 3 * * 1'   # elke maandag om 03u15 UTC
+  workflow_dispatch:
+
+env:
+  D1_NAME: besteltool
+  R2_BUCKET: besteltool-backups
+
+jobs:
+  backup:
+    name: D1 exporteren naar R2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Exporteren en wegschrijven
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python3 .github/scripts/backup.py
