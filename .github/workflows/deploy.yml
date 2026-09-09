@@ -24,9 +24,28 @@ jobs:
           node-version: '22'
       - run: node --test test/*.test.mjs
 
+  config:
+    name: Zijn de Cloudflare-secrets gezet?
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$TOKEN" ] && [ -n "$ACCOUNT" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::CLOUDFLARE_API_TOKEN of CLOUDFLARE_ACCOUNT_ID ontbreekt in deze repository — er wordt niets gepubliceerd. Zet ze bij Settings → Secrets and variables → Actions."
+          fi
+
   deploy:
     name: Build en publiceer naar Cloudflare Pages
-    needs: test
+    needs: [test, config]
+    if: needs.config.outputs.ready == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
