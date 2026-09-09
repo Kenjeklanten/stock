@@ -249,7 +249,8 @@ function renderImport(panel) {
   const preview = el('button', { class: 'btn btn--ghost', text: 'Controleren' });
   const apply = el('button', { class: 'btn', text: 'Importeren', disabled: true });
   const values = el('select', {}, [
-    el('option', { value: 'base', text: 'De getallen zijn de basisstock' }),
+    el('option', { value: 'base_packs', text: 'Basisstock in volle bakken, dozen of vaten' }),
+    el('option', { value: 'base', text: 'Basisstock in losse stuks' }),
     el('option', { value: 'ignore', text: 'Alleen producten en locaties overnemen' }),
   ]);
   const valuesRow = el('div', { class: 'f-16 hidden' }, [el('label', { text: 'Wat staat er in de cijferkolom?' }), values]);
@@ -298,7 +299,7 @@ function renderImport(panel) {
         : interpretBestellijst(sheets);
       if (!parsed.suppliers.length) throw new Error('Geen bruikbare tabbladen gevonden in dit bestand.');
       workbook = parsed;
-      values.value = perLocation ? 'base' : 'ignore';
+      values.value = perLocation ? 'base_packs' : 'ignore';
       valuesRow.classList.remove('hidden');
       area.value = '';
       out.append(summary(parsed, perLocation ? 'per-locatie' : 'bestellijst'));

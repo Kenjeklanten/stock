@@ -1,7 +1,7 @@
 /**
  * POST /api/admin/import
- *   { company_id, mode: 'preview' | 'apply', csv: "..." }                      ← CSV plakken of kiezen
- *   { company_id, mode, sheets: [...], values: 'base' | 'ignore' }             ← uit een xlsx (bestellijst)
+ *   { company_id, mode: 'preview' | 'apply', csv: "..." }                                  ← CSV plakken of kiezen
+ *   { company_id, mode, sheets: [...], values: 'base' | 'base_packs' | 'ignore' }        ← uit een xlsx
  *
  * Alles wordt binnen dat ene bedrijf aangemaakt of bijgewerkt; bedrijven delen niets.
  *
@@ -10,9 +10,11 @@
  * Elke overige kolom is een locatie: de waarde is de basisstock van dat product daar.
  * Een lege cel betekent "dit product staat niet in die locatie".
  *
- * Bij een xlsx in de vorm van de bestellijst is elk tabblad een leverancier, staan de locaties
- * in de kopregel en zijn de blokken (PET, EXTRA, …) categorieën. `values` zegt of de getallen
- * in het bestand de basisstock zijn of alleen producten en locaties moeten opleveren.
+ * Bij een xlsx is elk tabblad een leverancier (bestellijst) of een locatie (stocktelling).
+ * `values` zegt wat de getallen betekenen:
+ *   base        de basisstock in stuks
+ *   base_packs  de basisstock in volle verpakkingen — wordt vermenigvuldigd met de inhoud
+ *   ignore      alleen de producten en locaties overnemen
  */
 import { json, handler, db, body, int, num, text, HttpError } from '../../_lib/http.js';
 import { parseCsv } from '../../_lib/csv.js';
@@ -38,7 +40,8 @@ const chunk = (arr, size = 40) => {
 };
 
 const item = (fields) => ({
-  name: '', sku: '', unit: 'stuk', pack_size: 1, pack_label: '', category: '', supplier: '', base: {}, ...fields,
+  name: '', sku: '', unit: 'stuk', pack_size: 1, pack_label: '', category: '', supplier: '',
+  base: {}, base_in_packs: false, ...fields,
 });
 
 /** CSV → locatiekolommen en producten. */
@@ -91,7 +94,8 @@ function fromCsv(csv) {
  */
 function fromSheets(sheets, values) {
   if (!Array.isArray(sheets) || !sheets.length) throw new HttpError('Geen bruikbare tabbladen in het bestand.');
-  const useBase = values === 'base';
+  const inPacks = values === 'base_packs';
+  const useBase = values === 'base' || inPacks;
   const locationNames = [];
   const items = [];
   const warnings = [];
@@ -113,11 +117,12 @@ function fromSheets(sheets, values) {
           base[text(location, 80)] = Math.max(0, qty);
         }
       }
-      items.push(item({ name: productName, supplier, category: text(product.category, 60), base }));
+      items.push(item({ name: productName, supplier, category: text(product.category, 60), base, base_in_packs: inPacks }));
     }
   }
   if (!items.length) throw new HttpError('Geen producten gevonden in de tabbladen.');
   if (!useBase) warnings.push('De getallen uit het bestand zijn niet overgenomen: vul de basisstock nog in bij Producten & basisstock.');
+  if (inPacks) warnings.push('De getallen zijn gelezen als volle verpakkingen: de basisstock wordt het getal × de inhoud van een verpakking.');
   return { locationNames, items, warnings, exclusive: false };
 }
 
@@ -159,10 +164,20 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
     par_rows: items.reduce((a, p) => a + Object.keys(p.base).length, 0),
     warnings: [...warnings],
   };
+  const byName = new Map();
+  for (const [key, row] of prodByKey) byName.set(key.split('|')[0], row);
   for (const p of items) {
     if (p.supplier && !supByName.has(norm(p.supplier)) && !report.suppliers_new.includes(p.supplier)) report.suppliers_new.push(p.supplier);
     if (prodByKey.has(`${norm(p.name)}|${supKey(p.supplier)}`)) report.products_updated++;
-    else report.products_new++;
+    else {
+      report.products_new++;
+      // Zelfde naam, andere leverancier: dat wordt een tweede product. Beter even melden.
+      const twin = byName.get(norm(p.name));
+      if (twin) {
+        const other = (existingSuppliers.results || []).find((s) => s.id === twin.supplier_id);
+        report.warnings.push(`"${p.name}" staat al onder ${other ? other.name : 'een andere leverancier'}; dit wordt een tweede product onder ${p.supplier || 'geen leverancier'}.`);
+      }
+    }
   }
 
   if (!apply) return json({ preview: true, report, sample: items.slice(0, 8) });
@@ -177,15 +192,21 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
   }
 
   const parStatements = [];
+  const packOne = [];
   for (const p of items) {
     const supId = p.supplier ? supByName.get(norm(p.supplier)).id : null;
     const known = prodByKey.get(`${norm(p.name)}|${supId || 0}`);
     let id;
+    let packSize = p.pack_size;
     if (known) {
       id = known.id;
+      // Uit een xlsx komt geen verpakkingsinhoud: die van het bestaande product blijft staan.
+      const current = await D.prepare('SELECT pack_size, unit, pack_label, sku FROM products WHERE id = ?1').bind(id).first();
+      const keep = input.sheets && current ? current : null;
+      packSize = keep ? keep.pack_size : p.pack_size;
       await D.prepare(
         'UPDATE products SET sku = ?2, unit = ?3, pack_size = ?4, pack_label = ?5, category = ?6, active = 1 WHERE id = ?1'
-      ).bind(id, p.sku, p.unit, p.pack_size, p.pack_label, p.category).run();
+      ).bind(id, keep ? keep.sku : p.sku, keep ? keep.unit : p.unit, packSize, keep ? keep.pack_label : p.pack_label, p.category).run();
     } else {
       const res = await D.prepare(
         `INSERT INTO products (company_id, name, sku, unit, pack_size, pack_label, category, supplier_id)
@@ -194,6 +215,7 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
       id = res.meta.last_row_id;
       prodByKey.set(`${norm(p.name)}|${supId || 0}`, { id, name: p.name, supplier_id: supId });
     }
+    if (p.base_in_packs && !(packSize > 1)) packOne.push(p.name);
 
     for (const name of locationNames) {
       const location = locByName.get(norm(name));
@@ -205,13 +227,17 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
         if (parsed.exclusive) parStatements.push(D.prepare('DELETE FROM par_levels WHERE location_id = ?1 AND product_id = ?2').bind(location.id, id));
         continue;
       }
+      const stored = p.base_in_packs ? Math.round(qty * (packSize > 0 ? packSize : 1) * 100) / 100 : qty;
       parStatements.push(D.prepare(
         `INSERT INTO par_levels (location_id, product_id, base_qty) VALUES (?1, ?2, ?3)
          ON CONFLICT(location_id, product_id) DO UPDATE SET base_qty = excluded.base_qty`
-      ).bind(location.id, id, qty));
+      ).bind(location.id, id, stored));
     }
   }
   for (const batch of chunk(parStatements)) await D.batch(batch);
+  if (packOne.length) {
+    report.warnings.push(`Bij ${packOne.length} product(en) staat de verpakking op 1, dus het getal is als stuks overgenomen: ${packOne.slice(0, 8).join(', ')}${packOne.length > 8 ? '…' : ''}.`);
+  }
 
   return json({ preview: false, report });
 });

@@ -398,3 +398,41 @@ test('de bestellijst komt eruit als Excel in de vorm van de bestaande lijst', as
   const leeg = await xlsxApi.onRequestGet(ctx(env, { url: `https://x/api/export/xlsx?company_id=${ids.co}&date=2020-01-01` }));
   assert.equal(leeg.status, 404);
 });
+
+
+test('xlsx-import: getallen in bakken worden omgerekend naar stuks', async () => {
+  const env = newEnv();
+  const ids = await seed(env);   // Cola 33cl zit in een bak van 24
+  const sheets = [{
+    name: 'Drankencentrale',
+    locations: ['Bar tribune 1'],
+    products: [
+      { name: 'Cola 33cl', category: 'Frisdrank', values: { 'Bar tribune 1': 3 } },
+      { name: 'Rietjes', category: '', values: { 'Bar tribune 1': 5 } },   // nieuw product, verpakking 1
+    ],
+  }];
+  const res = await asJson(await importApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { company_id: ids.co, sheets, values: 'base_packs', mode: 'apply' },
+  })));
+  assert.equal(res.preview, false);
+  assert.match(res.report.warnings.join(' '), /verpakking op 1/);
+
+  const cat = await asJson(await catalogApi.onRequestGet(ctx(env, { url: `https://x/api/catalog?company_id=${ids.co}&location_id=${ids.loc}` })));
+  const cola = cat.products.find((p) => p.name === 'Cola 33cl');
+  assert.equal(cola.base_qty, 72, '3 bakken × 24 = 72 blik');
+  const rietjes = cat.products.find((p) => p.name === 'Rietjes');
+  assert.equal(rietjes.base_qty, 5, 'verpakking 1 → het getal blijft staan');
+
+  // de verpakking van een bestaand product wordt niet overschreven door de import
+  assert.equal(cola.pack_size, 24);
+
+  // een product dat al onder een andere leverancier staat, geeft een waarschuwing
+  const dubbel = await asJson(await importApi.onRequestPost(ctx(env, {
+    method: 'POST', mode: 'preview',
+    body: { company_id: ids.co, mode: 'preview', values: 'base_packs', sheets: [{
+      name: 'Andere leverancier', locations: ['Bar tribune 1'],
+      products: [{ name: 'Cola 33cl', values: { 'Bar tribune 1': 1 } }],
+    }] },
+  })));
+  assert.match(dubbel.report.warnings.join(' '), /staat al onder/);
+});
