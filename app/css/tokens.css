@@ -1,0 +1,133 @@
+/* =====================================================================
+   Besteltool JE Concept — design tokens.
+
+   Dit is de ENIGE plaats met kleuren, lettertypes, afstanden en vormen.
+   Zolang de echte JE Concept-huisstijl niet aangeleverd is, staan hier
+   sobere waarden die er professioneel uitzien; vervang ze door de tokens
+   van JE Concept en de hele tool volgt mee. app.css gebruikt uitsluitend
+   de rolnamen hieronder (--surface-*, --text-*, --action-*, --status-*),
+   dus je hoeft enkel dit bestand aan te passen.
+   ===================================================================== */
+:root {
+  /* ---------- palet (vervangen door de huisstijl) ---------- */
+  --je-navy-900: #0B1F33;
+  --je-navy-800: #12314F;
+  --je-navy-700: #1B456C;
+  --je-navy-500: #2E6DA4;
+  --je-navy-300: #8FB4D4;
+  --je-navy-100: #E3ECF4;
+
+  --je-teal-700: #0A6E6E;
+  --je-teal-500: #12A594;
+  --je-teal-100: #E1F5F1;
+
+  --je-amber-800: #8A4B00;
+  --je-amber-500: #E0930A;
+  --je-amber-100: #FDF1DC;
+
+  --je-red-700: #B3261E;
+  --je-red-300: #F1B4B0;
+  --je-red-100: #FCEBEA;
+
+  --je-green-700: #1B7A45;
+  --je-green-300: #9AD6B4;
+  --je-green-100: #E7F5EC;
+
+  --je-slate-900: #101828;
+  --je-slate-700: #344054;
+  --je-slate-500: #667085;
+  --je-slate-300: #D0D5DD;
+  --je-slate-100: #EAECF0;
+  --je-slate-50:  #F7F8FA;
+  --je-white:     #FFFFFF;
+
+  /* ---------- rollen ---------- */
+  --surface-page:   var(--je-slate-50);
+  --surface-card:   var(--je-white);
+  --surface-sunken: var(--je-slate-100);
+  --surface-dark:   var(--je-navy-900);
+
+  --text-strong:  var(--je-navy-900);
+  --text-body:    var(--je-slate-700);
+  --text-muted:   var(--je-slate-500);
+  --text-on-dark: #EAF1F8;
+  --text-on-brand: var(--je-white);
+  --text-link:       var(--je-navy-700);
+  --text-link-hover: var(--je-navy-900);
+
+  --action-primary:         var(--je-navy-700);
+  --action-primary-hover:   var(--je-navy-800);
+  --action-secondary:       var(--je-teal-700);
+  --action-secondary-hover: #085757;
+  --action-accent:          var(--je-amber-500);
+
+  --border-soft:   var(--je-slate-300);
+  --border-strong: var(--je-navy-700);
+
+  --status-success: var(--je-green-700);
+  --status-success-soft: var(--je-green-100);
+  --status-warning: var(--je-amber-800);
+  --status-warning-soft: var(--je-amber-100);
+  --status-danger:  var(--je-red-700);
+  --status-danger-soft: var(--je-red-100);
+  --status-info:    var(--je-navy-700);
+  --status-info-soft: var(--je-navy-100);
+
+  --focus-ring: var(--je-navy-500);
+  --ring-focus: 0 0 0 3px rgba(46, 109, 164, .35);
+
+  /* ---------- typografie ---------- */
+  --font-display: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-body:    "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --text-h1: clamp(26px, 3vw, 34px);
+  --text-h2: 20px;
+  --text-h3: 24px;
+  --text-h4: 18px;
+  --text-body-lg: 18px;
+  --text-body-md: 16px;
+  --text-body-sm: 14px;
+  --text-caption: 13px;
+  --text-eyebrow: 12px;
+
+  --weight-regular: 400;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-black: 800;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.25;
+  --leading-normal: 1.5;
+  --leading-loose: 1.7;
+  --tracking-eyebrow: .08em;
+
+  /* ---------- ruimte en vorm ---------- */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
+  --space-6: 32px; --space-7: 48px; --space-8: 64px; --space-9: 96px;
+  --container-max: 1180px;
+  --gutter: 24px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --radius-card: var(--radius-lg);
+  --radius-input: var(--radius-sm);
+  --radius-button: var(--radius-sm);
+  --radius-tag: var(--radius-pill);
+
+  --border-hairline: 1px;
+  --border-regular: 1px;
+  --border-chunky: 3px;
+
+  --shadow-sm:   0 1px 2px rgba(16, 24, 40, .06);
+  --shadow-card: 0 1px 3px rgba(16, 24, 40, .08), 0 8px 24px -16px rgba(16, 24, 40, .28);
+  --shadow-lift: 0 12px 28px -12px rgba(16, 24, 40, .34);
+
+  /* ---------- beweging ---------- */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --ease-out: cubic-bezier(.22, .61, .36, 1);
+  --ease-bounce: cubic-bezier(.34, 1.2, .64, 1);
+  --hover-lift: translateY(-1px);
+}

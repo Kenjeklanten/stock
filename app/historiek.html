@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Historiek — Besteltool JE Concept</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar__inner">
+    <a class="brand" href="/">Besteltool <span>JE Concept</span></a>
+    <div class="company-picker">
+      <label class="sr-only" for="company">Bedrijf</label>
+      <select id="company"><option value="">Laden…</option></select>
+    </div>
+    <nav aria-label="Hoofdnavigatie">
+      <a href="/" data-page="telling">Tellen</a>
+      <a href="/historiek" data-page="historiek">Historiek</a>
+      <a href="/beheer" data-page="beheer" data-admin-only>Beheer</a>
+    </nav>
+    <p class="who"></p>
+  </div>
+</header>
+
+<main>
+  <h1>Historiek</h1>
+  <p class="muted small">Alle tellingen en de bestellingen die eruit volgden.</p>
+  <div id="messages"></div>
+
+  <section class="card">
+    <div class="row">
+      <div class="f-16">
+        <label for="location">Locatie</label>
+        <select id="location"><option value="">Alle locaties</option></select>
+      </div>
+      <div class="f-fixed self-end">
+        <a class="btn" href="/">Nieuwe telling</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="table-wrap"><div id="list"><p class="skeleton">Laden…</p></div></div>
+  </section>
+</main>
+
+<script type="module" src="/js/historiek.js"></script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Stock tellen — Besteltool JE Concept</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar__inner">
+    <a class="brand" href="/">Besteltool <span>JE Concept</span></a>
+    <div class="company-picker">
+      <label class="sr-only" for="company">Bedrijf</label>
+      <select id="company"><option value="">Laden…</option></select>
+    </div>
+    <nav aria-label="Hoofdnavigatie">
+      <a href="/" data-page="telling">Tellen</a>
+      <a href="/historiek" data-page="historiek">Historiek</a>
+      <a href="/beheer" data-page="beheer" data-admin-only>Beheer</a>
+    </nav>
+    <p class="who"></p>
+  </div>
+</header>
+
+<main>
+  <h1 id="page-title">Stock tellen</h1>
+  <p class="muted small" id="page-intro">Kies een locatie, tel wat er staat en de tool maakt het verschil met de basisstock tot een bestelling.</p>
+
+  <div id="messages"></div>
+
+  <section class="card">
+    <div class="grid">
+      <div>
+        <label for="location">Locatie</label>
+        <select id="location"><option value="">Laden…</option></select>
+      </div>
+      <div>
+        <label for="date">Datum van de telling</label>
+        <input type="date" id="date">
+      </div>
+      <div>
+        <label for="note">Opmerking (optioneel)</label>
+        <input type="text" id="note" maxlength="200" placeholder="bv. levering verwacht op vrijdag">
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="controls" hidden>
+    <div class="row">
+      <div class="f-grow">
+        <label for="search">Zoeken</label>
+        <input type="search" id="search" placeholder="product of artikelnummer" autocomplete="off">
+      </div>
+      <div class="f-fixed">
+        <label for="group-by">Groeperen per</label>
+        <select id="group-by">
+          <option value="category">Categorie</option>
+          <option value="supplier">Leverancier</option>
+          <option value="none">Geen groepering</option>
+        </select>
+      </div>
+      <div class="f-fixed self-end">
+        <button type="button" class="btn btn--sm btn--ghost" id="toggle-todo">Enkel niet-getelde tonen</button>
+      </div>
+    </div>
+  </section>
+
+  <form id="count-form" novalidate>
+    <div id="list"><p class="skeleton">Kies eerst een locatie.</p></div>
+  </form>
+</main>
+
+<div class="sticky-bar" id="bar" hidden>
+  <div class="sticky-bar__inner">
+    <span class="stat"><b id="stat-counted">0</b> van <span id="stat-total">0</span> geteld</span>
+    <span class="stat"><b id="stat-order">0</b> te bestellen</span>
+    <span class="spacer"></span>
+    <button type="button" class="btn btn--ghost" id="btn-reset">Leegmaken</button>
+    <button type="button" class="btn" id="btn-save">Bestelling opmaken</button>
+  </div>
+</div>
+
+<script type="module" src="/js/telling.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "jeconcept-besteltool",
+  "private": true,
+  "description": "Besteltool JE Concept — stock tellen per locatie en per bedrijf; het verschil met de basisstock wordt een bestelling",
+  "scripts": {
+    "build": "python3 build.py dist",
+    "dev": "npm run build && npx wrangler pages dev dist --d1 DB=besteltool --port 8788",
+    "db": "node scripts/dev-db.mjs",
+    "seed": "node scripts/dev-db.mjs --seed",
+    "test": "node --test test/*.test.mjs",
+    "deploy": "npm run build && npx wrangler pages deploy dist --project-name=jeconcept-stock"
+  },
+  "devDependencies": {
+    "wrangler": "^3.114.17"
+  }
+}

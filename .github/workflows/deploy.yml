@@ -1,0 +1,66 @@
+name: Deploy besteltool
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  workflow_dispatch:
+
+concurrency:
+  group: besteltool-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT: jeconcept-stock
+  D1_NAME: besteltool
+
+jobs:
+  test:
+    name: Tests (API, bestelbon, import)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test test/*.test.mjs
+
+  deploy:
+    name: Build en publiceer naar Cloudflare Pages
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: python3 build.py dist
+
+      - name: Pages-project aanmaken als het nog niet bestaat
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler pages project create "$PROJECT" --production-branch=main
+
+      - name: D1-database aanmaken, schema toepassen en aan het project koppelen
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ACCESS_TEAM_DOMAIN: ${{ secrets.ACCESS_TEAM_DOMAIN }}
+          ACCESS_AUD: ${{ secrets.ACCESS_AUD }}
+          ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
+        run: python3 .github/scripts/cloudflare.py
+
+      - name: Publiceren
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler pages deploy dist --project-name="$PROJECT" --branch="$GITHUB_REF_NAME" --commit-dirty=true
