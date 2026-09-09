@@ -34,7 +34,7 @@ function applySchema(db, sql) {
     try {
       db.exec(statement + ';');
     } catch (err) {
-      if (/duplicate column/i.test(err.message)) continue;
+      if (/duplicate column|no such column|cannot drop/i.test(err.message)) continue;
       throw err;
     }
   }

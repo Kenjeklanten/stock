@@ -12,8 +12,7 @@ const M = 42;                       // marge links/rechts
 const TOP = A4.h - 46, BOTTOM = 76; // schrijfgebied
 
 const COLS = [
-  { key: 'sku',    label: 'Art.nr',     w: 50,  align: 'left' },
-  { key: 'name',   label: 'Product',    w: 140, align: 'left' },
+  { key: 'name',   label: 'Product',    w: 190, align: 'left' },
   { key: 'unit',   label: 'Eenheid',    w: 44,  align: 'left' },
   { key: 'base',   label: 'Basis',      w: 38,  align: 'right' },
   { key: 'split',  label: 'Pak + los',  w: 62,  align: 'left' },
@@ -81,7 +80,6 @@ function row(doc, y, line, zebra) {
   const packs = orderPacks(line.order_qty, line.pack_size);
   const notCounted = line.counted_qty === null || line.counted_qty === undefined;
   const values = {
-    sku: line.sku || '',
     name: line.product_name,
     unit: line.unit || 'stuk',
     base: fmt(line.base_qty),

@@ -12,7 +12,7 @@ import { scopeFor, requireCompany, companyOfCount } from '../../_lib/access.js';
 const SELECT = `
   SELECT cl.product_id, cl.product_name, cl.order_qty,
          c.location_id, l.name AS location_name, l.sort AS location_sort,
-         p.category, p.sort AS product_sort, p.supplier_id,
+         p.sort AS product_sort, p.supplier_id,
          s.name AS supplier_name, s.sort AS supplier_sort
     FROM counts c
     JOIN count_lines cl ON cl.count_id = c.id

@@ -14,7 +14,7 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
   const [locations, products, pars, settings] = await Promise.all([
     D.prepare('SELECT id, name FROM locations WHERE company_id = ?1 AND active = 1 ORDER BY sort, name').bind(companyId).all(),
     D.prepare(`SELECT p.*, s.name AS supplier_name FROM products p LEFT JOIN suppliers s ON s.id = p.supplier_id
-               WHERE p.company_id = ?1 AND p.active = 1 ORDER BY IFNULL(NULLIF(p.category,''),'zzz'), p.sort, p.name`).bind(companyId).all(),
+               WHERE p.company_id = ?1 AND p.active = 1 ORDER BY IFNULL(s.sort, 999), IFNULL(s.name, 'zzz'), p.sort, p.name`).bind(companyId).all(),
     D.prepare(`SELECT pl.location_id, pl.product_id, pl.base_qty FROM par_levels pl
                JOIN locations l ON l.id = pl.location_id WHERE l.company_id = ?1`).bind(companyId).all(),
     D.prepare("SELECT value FROM settings WHERE key = 'csv_delimiter'").first(),
@@ -24,10 +24,10 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
   const base = new Map();
   for (const row of pars.results || []) base.set(`${row.product_id}|${row.location_id}`, row.base_qty);
 
-  const headers = ['Product', 'Artikelnummer', 'Eenheid', 'Verpakking', 'Verpakkingsnaam', 'Categorie', 'Leverancier',
+  const headers = ['Product', 'Eenheid', 'Verpakking', 'Verpakkingsnaam', 'Leverancier',
     ...locs.map((l) => l.name)];
   const rows = (products.results || []).map((p) => [
-    p.name, p.sku || '', p.unit || 'stuk', fmt(p.pack_size), p.pack_label || '', p.category || '', p.supplier_name || '',
+    p.name, p.unit || 'stuk', fmt(p.pack_size), p.pack_label || '', p.supplier_name || '',
     ...locs.map((l) => { const v = base.get(`${p.id}|${l.id}`); return v === undefined ? '' : fmt(v); }),
   ]);
 

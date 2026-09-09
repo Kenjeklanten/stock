@@ -3,11 +3,9 @@ import { guard, requireCompany, requireRowCompany } from './_guard.js';
 
 const fields = (input) => ({
   name: text(input.name, 120),
-  sku: text(input.sku, 60),
   unit: text(input.unit, 24) || 'stuk',
   pack_size: Math.max(num(input.pack_size, 1) || 1, 0.01),
   pack_label: text(input.pack_label, 60),
-  category: text(input.category, 60),
   supplier_id: int(input.supplier_id, null) || null,
   sort: int(input.sort, 0),
   active: input.active === false ? 0 : 1,
@@ -44,9 +42,9 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
   let id;
   try {
     const res = await D.prepare(
-      `INSERT INTO products (company_id, name, sku, unit, pack_size, pack_label, category, supplier_id, sort, active)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
-    ).bind(companyId, f.name, f.sku, f.unit, f.pack_size, f.pack_label, f.category, f.supplier_id, f.sort, f.active).run();
+      `INSERT INTO products (company_id, name, unit, pack_size, pack_label, supplier_id, sort, active)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`
+    ).bind(companyId, f.name, f.unit, f.pack_size, f.pack_label, f.supplier_id, f.sort, f.active).run();
     id = res.meta.last_row_id;
   } catch (err) {
     if (String(err.message).includes('UNIQUE')) throw new HttpError('Dit product bestaat al bij deze leverancier.', 409);
@@ -68,9 +66,9 @@ export const onRequestPut = handler(async ({ request, env, data }) => {
   const product = await D.prepare('SELECT company_id FROM products WHERE id = ?1').bind(id).first();
   if (!product) throw new HttpError('Product niet gevonden.', 404);
   const res = await D.prepare(
-    `UPDATE products SET name = ?2, sku = ?3, unit = ?4, pack_size = ?5, pack_label = ?6,
-            category = ?7, supplier_id = ?8, sort = ?9, active = ?10 WHERE id = ?1`
-  ).bind(id, f.name, f.sku, f.unit, f.pack_size, f.pack_label, f.category, f.supplier_id, f.sort, f.active).run();
+    `UPDATE products SET name = ?2, unit = ?3, pack_size = ?4, pack_label = ?5,
+            supplier_id = ?6, sort = ?7, active = ?8 WHERE id = ?1`
+  ).bind(id, f.name, f.unit, f.pack_size, f.pack_label, f.supplier_id, f.sort, f.active).run();
   await saveBase(D, id, product.company_id, input.base);
   return json({ ok: true, changes: res.meta.changes });
 });

@@ -17,13 +17,13 @@ export async function loadCount(D, id) {
   const lines = await D.prepare(
     `SELECT cl.product_id, cl.product_name, cl.counted_qty, cl.counted_packs, cl.counted_loose,
             cl.base_qty, cl.pack_size, cl.order_qty,
-            p.sku, p.unit, p.pack_label, p.category, p.supplier_id, s.name AS supplier_name,
+            p.unit, p.pack_label, p.supplier_id, s.name AS supplier_name,
             s.email AS supplier_email, s.customer_ref, p.sort
        FROM count_lines cl
        LEFT JOIN products  p ON p.id = cl.product_id
        LEFT JOIN suppliers s ON s.id = p.supplier_id
       WHERE cl.count_id = ?1
-      ORDER BY IFNULL(s.sort, 999), IFNULL(s.name, 'zzz'), IFNULL(NULLIF(p.category, ''), 'zzz'), IFNULL(p.sort, 0), cl.product_name`
+      ORDER BY IFNULL(s.sort, 999), IFNULL(s.name, 'zzz'), IFNULL(p.sort, 0), cl.product_name`
   ).bind(id).all();
 
   const settings = await D.prepare('SELECT key, value FROM settings').all();

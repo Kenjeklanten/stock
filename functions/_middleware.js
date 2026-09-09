@@ -12,6 +12,7 @@
  *   ADMIN_EMAILS        komma-gescheiden lijst; leeg = iedereen met toegang mag beheren
  */
 import { json } from './_lib/http.js';
+import { activePin, unlocked } from './_lib/pin.js';
 
 const CERTS_TTL_MS = 60 * 60 * 1000;
 let certsCache = { at: 0, team: '', keys: null };
@@ -77,13 +78,27 @@ const adminFlags = (email, env) => {
   return { admin: list.length === 0 || listed, admin_listed: listed, admin_list_set: list.length > 0 };
 };
 
+/**
+ * De toegangscode zit vóór de API. De pagina's zelf laden wel, maar tonen zonder code niets:
+ * elke aanvraag naar /api/ geeft 401 met code 'pin', waarna het scherm om de cijfers vraagt.
+ */
+async function pinGate(request, env, url) {
+  if (!url.pathname.startsWith('/api/') || url.pathname === '/api/pin') return null;
+  if (!env.DB) return null;
+  const pin = await activePin(env, env.DB);
+  if (!pin || await unlocked(request, pin, env)) return null;
+  return json({ error: 'Geef eerst de toegangscode van de besteltool.', code: 'pin' }, 401);
+}
+
 export async function onRequest(context) {
   const { request, env, next, data } = context;
   const url = new URL(request.url);
   const team = String(env.ACCESS_TEAM_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
 
   if (!team) {
-    // Geen Access geconfigureerd: open (lokale ontwikkeling). De app toont hierbij een waarschuwing.
+    // Geen Access geconfigureerd: enkel de toegangscode beschermt de tool.
+    const gate = await pinGate(request, env, url);
+    if (gate) return gate;
     data.user = { email: request.headers.get('cf-access-authenticated-user-email') || '', admin: true, admin_listed: false, admin_list_set: false, protected: false };
     return next();
   }
@@ -105,6 +120,9 @@ export async function onRequest(context) {
       `div{max-width:32rem;padding:2rem;text-align:center}a{color:#7dd3fc}</style><div><h1>Geen toegang</h1><p>${message}</p></div></html>`,
       { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
   }
+
+  const gate = await pinGate(request, env, url);
+  if (gate) return gate;
 
   const email = payload.email || payload.common_name || '';
   data.user = { email, ...adminFlags(email, env), protected: true };

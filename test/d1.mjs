@@ -24,7 +24,7 @@ export function createDb(schemaPath) {
   for (const chunk of readFileSync(schemaPath, 'utf8').split(/;\s*\n/)) {
     const statement = chunk.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n').trim();
     if (!statement) continue;
-    try { db.exec(statement + ';'); } catch (err) { if (!/duplicate column/i.test(err.message)) throw err; }
+    try { db.exec(statement + ';'); } catch (err) { if (!/duplicate column|no such column|cannot drop/i.test(err.message)) throw err; }
   }
   return {
     prepare: (sql) => new Statement(db, sql),

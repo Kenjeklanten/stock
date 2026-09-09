@@ -39,11 +39,11 @@ async function seed(env, { name = 'STVV' } = {}) {
   const sup = await asJson(await suppliersApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: co, name: 'Drankencentrale', customer_ref: 'KL-42' } })));
   const cola = await asJson(await productsApi.onRequestPost(ctx(env, {
     method: 'POST',
-    body: { company_id: co, name: 'Cola 33cl', sku: 'C33', unit: 'blik', pack_size: 24, pack_label: 'bak van 24', category: 'Frisdrank', supplier_id: sup.id, base: { [loc.id]: 48, [loc2.id]: 24 } },
+    body: { company_id: co, name: 'Cola 33cl', unit: 'blik', pack_size: 24, pack_label: 'bak van 24', supplier_id: sup.id, base: { [loc.id]: 48, [loc2.id]: 24 } },
   })));
   const chips = await asJson(await productsApi.onRequestPost(ctx(env, {
     method: 'POST',
-    body: { company_id: co, name: 'Chips paprika', sku: 'CP', unit: 'zak', pack_size: 1, category: 'Snacks', supplier_id: sup.id, base: { [loc.id]: 20 } },
+    body: { company_id: co, name: 'Chips paprika', unit: 'zak', pack_size: 1, supplier_id: sup.id, base: { [loc.id]: 20 } },
   })));
   const servet = await asJson(await productsApi.onRequestPost(ctx(env, {
     method: 'POST', body: { company_id: co, name: 'Servetten', unit: 'pak', pack_size: 1, base: { [loc.id]: 10 } },
@@ -149,8 +149,8 @@ test('CSV-export van de bestelling', async () => {
   assert.match(res.headers.get('content-disposition'), /bestelling-stvv-bar-tribune-1-2026-09-09\.csv/);
   const rows = parseCsv(body);
   assert.equal(rows.length, 2, 'kop + enkel de te bestellen regel');
-  assert.deepEqual(rows[1].slice(0, 4), ['Drankencentrale', 'KL-42', 'C33', 'Cola 33cl']);
-  assert.equal(rows[1][12], '24', 'kolom "Te bestellen"');
+  assert.deepEqual(rows[1].slice(0, 3), ['Drankencentrale', 'KL-42', 'Cola 33cl']);
+  assert.equal(rows[1][10], '24', 'kolom "Te bestellen"');
   const bytes = new Uint8Array(await (await csvApi.onRequestGet(ctx(env, { params: { id: String(id) }, url: 'https://x/api/counts/1/csv' }))).arrayBuffer());
   assert.deepEqual([...bytes.slice(0, 3)], [0xef, 0xbb, 0xbf], 'BOM zodat Excel de accenten juist leest');
 
@@ -186,10 +186,10 @@ test('CSV-import maakt producten, locaties en basisstock aan binnen één bedrij
   const env = newEnv();
   const { id: company } = await asJson(await companiesApi.onRequestPost(ctx(env, { method: 'POST', body: { name: 'Bistro het Vinne' } })));
   const csv = [
-    'Product;Artikelnummer;Eenheid;Verpakking;Categorie;Leverancier;Bar;Keuken',
-    'Cola 33cl;C33;blik;24;Frisdrank;Drankencentrale;48;12',
-    'Koffiebonen;KB1;kg;1;Warme dranken;Koffie NV;6;',
-    'Fout product;X;stuk;1;;;abc;3',
+    'Product;Eenheid;Verpakking;Leverancier;Bar;Keuken',
+    'Cola 33cl;blik;24;Drankencentrale;48;12',
+    'Koffiebonen;kg;1;Koffie NV;6;',
+    'Fout product;stuk;1;;abc;3',
   ].join('\n');
 
   const preview = await asJson(await importApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: company, csv, mode: 'preview' } })));
@@ -217,7 +217,7 @@ test('CSV-import maakt producten, locaties en basisstock aan binnen één bedrij
 
   const exported = await (await exportApi.onRequestGet(ctx(env, { url: `https://x/api/admin/export?company_id=${company}` }))).text();
   const rows = parseCsv(exported);
-  assert.deepEqual(rows[0].slice(0, 7), ['Product', 'Artikelnummer', 'Eenheid', 'Verpakking', 'Verpakkingsnaam', 'Categorie', 'Leverancier']);
+  assert.deepEqual(rows[0].slice(0, 5), ['Product', 'Eenheid', 'Verpakking', 'Verpakkingsnaam', 'Leverancier']);
   assert.equal(rows.length, 4);
 });
 
@@ -309,9 +309,9 @@ test('tellen gebeurt in volle pakken en losse stuks', async () => {
 
   const csv = await (await csvApi.onRequestGet(ctx(env, { params: { id: String(id) }, url: 'https://x/api/counts/1/csv?scope=all' }))).text();
   const rows = parseCsv(csv);
-  assert.deepEqual(rows[0].slice(8, 11), ['Geteld volle pakken', 'Geteld losse stuks', 'Geteld totaal']);
-  const colaRow = rows.find((r) => r[3] === 'Cola 33cl');
-  assert.deepEqual(colaRow.slice(8, 11), ['1', '6', '30']);
+  assert.deepEqual(rows[0].slice(6, 9), ['Geteld volle pakken', 'Geteld losse stuks', 'Geteld totaal']);
+  const colaRow = rows.find((r) => r[2] === 'Cola 33cl');
+  assert.deepEqual(colaRow.slice(6, 9), ['1', '6', '30']);
 
   const pdf = Buffer.from(await (await pdfApi.onRequestGet(ctx(env, { params: { id: String(id) }, url: 'https://x/api/counts/1/pdf' }))).arrayBuffer()).toString('latin1');
   assert.match(pdf, /1 pak \+ 6/, 'de bestelbon toont de splitsing');
@@ -407,8 +407,8 @@ test('xlsx-import: getallen in bakken worden omgerekend naar stuks', async () =>
     name: 'Drankencentrale',
     locations: ['Bar tribune 1'],
     products: [
-      { name: 'Cola 33cl', category: 'Frisdrank', values: { 'Bar tribune 1': 3 } },
-      { name: 'Rietjes', category: '', values: { 'Bar tribune 1': 5 } },   // nieuw product, verpakking 1
+      { name: 'Cola 33cl', values: { 'Bar tribune 1': 3 } },
+      { name: 'Rietjes', values: { 'Bar tribune 1': 5 } },   // nieuw product, verpakking 1
     ],
   }];
   const res = await asJson(await importApi.onRequestPost(ctx(env, {

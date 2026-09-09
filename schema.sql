@@ -40,11 +40,9 @@ CREATE TABLE IF NOT EXISTS products (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   name        TEXT    NOT NULL,
-  sku         TEXT,                        -- artikelnummer bij de leverancier
   unit        TEXT    NOT NULL DEFAULT 'stuk',
   pack_size   REAL    NOT NULL DEFAULT 1,  -- besteleenheid: aantal stuks per volle verpakking
   pack_label  TEXT,                        -- bv. "bak van 24"
-  category    TEXT,
   supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
   sort        INTEGER NOT NULL DEFAULT 0,
   active      INTEGER NOT NULL DEFAULT 1,
@@ -52,6 +50,11 @@ CREATE TABLE IF NOT EXISTS products (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS products_unique ON products (company_id, name, IFNULL(supplier_id, 0));
 CREATE INDEX IF NOT EXISTS products_company ON products (company_id, active, sort, name);
+
+-- Migratie voor databases van vóór deze versie: artikelnummer en categorie zijn eruit.
+-- Bestaan de kolommen niet meer, dan negeert de deploy de fout (zie .github/scripts).
+ALTER TABLE products DROP COLUMN sku;
+ALTER TABLE products DROP COLUMN category;
 
 -- Basisstock: wat er per locatie in voorraad hoort te zijn.
 CREATE TABLE IF NOT EXISTS par_levels (
@@ -110,4 +113,5 @@ CREATE TABLE IF NOT EXISTS settings (
 
 INSERT OR IGNORE INTO settings (key, value) VALUES
   ('csv_delimiter', ';'),
+  ('pin', '8956'),                 -- toegangscode; leeg = geen code vragen
   ('schema_version', '2');

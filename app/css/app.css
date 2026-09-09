@@ -202,6 +202,22 @@ td select { padding-right: 30px; background-position: right 8px center; backgrou
 .tabs button:hover { color: var(--text-strong); }
 .tabs button[aria-selected="true"] { color: var(--text-strong); border-bottom-color: var(--action-primary); }
 
+/* ---------- toegangscode ---------- */
+.gate {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+  background: rgba(11, 31, 51, .75); padding: var(--gutter);
+}
+.gate__card {
+  background: var(--surface-card); border-radius: var(--radius-card); box-shadow: var(--shadow-lift);
+  padding: var(--space-5); width: min(22rem, 100%); display: grid; gap: var(--space-3);
+}
+.gate__card h2 { margin: 0; }
+.gate__card input {
+  font-family: var(--font-display); font-size: 2rem; letter-spacing: .4em;
+  text-align: center; padding: var(--space-3);
+}
+.gate__card p[role="alert"]:not(:empty) { color: var(--status-danger); margin: 0; }
+
 /* ---------- toast ---------- */
 #toast {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 6rem; z-index: 50;

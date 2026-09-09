@@ -112,7 +112,8 @@ for statement in statements:
     if not result.get("success"):
         message = errors(result)
         # Een ALTER die al eerder liep, is geen fout: het schema is dan gewoon al bij.
-        if statement.upper().startswith("ALTER TABLE") and "duplicate column" in message.lower():
+        if statement.upper().startswith("ALTER TABLE") and any(
+                hint in message.lower() for hint in ("duplicate column", "no such column", "cannot drop")):
             skipped += 1
             continue
         sys.exit(f"Schema toepassen mislukt op:\n{statement[:200]}\n{message}")

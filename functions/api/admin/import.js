@@ -6,7 +6,7 @@
  * Alles wordt binnen dat ene bedrijf aangemaakt of bijgewerkt; bedrijven delen niets.
  *
  * CSV-kolommen (hoofdletters en accenten maken niet uit):
- *   Product | Artikelnummer | Eenheid | Verpakking | Verpakkingsnaam | Categorie | Leverancier
+ *   Product | Eenheid | Verpakking | Verpakkingsnaam | Leverancier
  * Elke overige kolom is een locatie: de waarde is de basisstock van dat product daar.
  * Een lege cel betekent "dit product staat niet in die locatie".
  *
@@ -25,11 +25,9 @@ const norm = (s) => String(s || '').toLowerCase().normalize('NFD')
 
 const ALIASES = {
   name: ['product', 'productnaam', 'naam', 'omschrijving', 'artikel'],
-  sku: ['artikelnummer', 'artikelnr', 'sku', 'code', 'artikelcode'],
   unit: ['eenheid', 'unit'],
   pack_size: ['verpakking', 'verpakkingsgrootte', 'packsize', 'besteleenheid', 'inhoud'],
   pack_label: ['verpakkingsnaam', 'verpakkingslabel', 'colli', 'packlabel'],
-  category: ['categorie', 'category', 'groep', 'afdeling'],
   supplier: ['leverancier', 'supplier'],
 };
 
@@ -40,7 +38,7 @@ const chunk = (arr, size = 40) => {
 };
 
 const item = (fields) => ({
-  name: '', sku: '', unit: 'stuk', pack_size: 1, pack_label: '', category: '', supplier: '',
+  name: '', unit: 'stuk', pack_size: 1, pack_label: '', supplier: '',
   base: {}, base_in_packs: false, ...fields,
 });
 
@@ -76,11 +74,9 @@ function fromCsv(csv) {
     }
     items.push(item({
       name, base,
-      sku: cell(fieldOf.sku),
       unit: cell(fieldOf.unit) || 'stuk',
       pack_size: Math.max(num(cell(fieldOf.pack_size), 1) || 1, 0.01),
       pack_label: cell(fieldOf.pack_label),
-      category: cell(fieldOf.category),
       supplier: cell(fieldOf.supplier),
     }));
   }
@@ -117,7 +113,7 @@ function fromSheets(sheets, values) {
           base[text(location, 80)] = Math.max(0, qty);
         }
       }
-      items.push(item({ name: productName, supplier, category: text(product.category, 60), base, base_in_packs: inPacks }));
+      items.push(item({ name: productName, supplier, base, base_in_packs: inPacks }));
     }
   }
   if (!items.length) throw new HttpError('Geen producten gevonden in de tabbladen.');
@@ -201,17 +197,17 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
     if (known) {
       id = known.id;
       // Uit een xlsx komt geen verpakkingsinhoud: die van het bestaande product blijft staan.
-      const current = await D.prepare('SELECT pack_size, unit, pack_label, sku FROM products WHERE id = ?1').bind(id).first();
+      const current = await D.prepare('SELECT pack_size, unit, pack_label FROM products WHERE id = ?1').bind(id).first();
       const keep = input.sheets && current ? current : null;
       packSize = keep ? keep.pack_size : p.pack_size;
       await D.prepare(
-        'UPDATE products SET sku = ?2, unit = ?3, pack_size = ?4, pack_label = ?5, category = ?6, active = 1 WHERE id = ?1'
-      ).bind(id, keep ? keep.sku : p.sku, keep ? keep.unit : p.unit, packSize, keep ? keep.pack_label : p.pack_label, p.category).run();
+        'UPDATE products SET unit = ?2, pack_size = ?3, pack_label = ?4, active = 1 WHERE id = ?1'
+      ).bind(id, keep ? keep.unit : p.unit, packSize, keep ? keep.pack_label : p.pack_label).run();
     } else {
       const res = await D.prepare(
-        `INSERT INTO products (company_id, name, sku, unit, pack_size, pack_label, category, supplier_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`
-      ).bind(companyId, p.name, p.sku, p.unit, p.pack_size, p.pack_label, p.category, supId).run();
+        `INSERT INTO products (company_id, name, unit, pack_size, pack_label, supplier_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+      ).bind(companyId, p.name, p.unit, p.pack_size, p.pack_label, supId).run();
       id = res.meta.last_row_id;
       prodByKey.set(`${norm(p.name)}|${supId || 0}`, { id, name: p.name, supplier_id: supId });
     }

@@ -24,7 +24,7 @@ async function refresh() {
 
 function productRow(p, activeLocations) {
   const values = {
-    id: p.id, company_id: state.companyId, name: p.name, sku: p.sku || '', category: p.category || '',
+    id: p.id, company_id: state.companyId, name: p.name,
     unit: p.unit || 'stuk', pack_size: p.pack_size, pack_label: p.pack_label || '',
     supplier_id: p.supplier_id || '', active: p.active !== 0, base: { ...(p.base || {}) },
   };
@@ -37,8 +37,6 @@ function productRow(p, activeLocations) {
 
   tr.append(
     el('td', {}, [bind(input({ value: values.name, 'aria-label': 'Productnaam' }), 'name')]),
-    el('td', { class: 'cell-narrow' }, [bind(input({ value: values.sku, 'aria-label': 'Artikelnummer' }), 'sku')]),
-    el('td', { class: 'cell-narrow' }, [bind(input({ value: values.category, 'aria-label': 'Categorie' }), 'category')]),
     el('td', { class: 'cell-narrow' }, [(() => {
       const sel = el('select', { 'aria-label': 'Leverancier' }, [el('option', { value: '', text: '—' })]);
       for (const s of state.suppliers) sel.append(el('option', { value: String(s.id), text: s.name }));
@@ -88,8 +86,6 @@ function newProductForm(activeLocations) {
   const fields = {};
   const field = (label, node, cls = 'f-field') => el('div', { class: cls }, [el('label', { text: label }), node]);
   fields.name = input({ placeholder: 'Productnaam' });
-  fields.sku = input({ placeholder: 'Art.nr' });
-  fields.category = input({ placeholder: 'Categorie' });
   fields.unit = input({ value: 'stuk' });
   fields.pack_size = el('input', { type: 'number', min: '0.01', step: 'any', value: '1' });
   fields.pack_label = input({ placeholder: 'bv. bak van 24' });
@@ -101,7 +97,7 @@ function newProductForm(activeLocations) {
   submit.addEventListener('click', async () => {
     const body = {
       company_id: state.companyId,
-      name: fields.name.value, sku: fields.sku.value, category: fields.category.value,
+      name: fields.name.value,
       unit: fields.unit.value, pack_size: num(fields.pack_size.value, 1), pack_label: fields.pack_label.value,
       supplier_id: fields.supplier.value || null,
       base: Object.fromEntries([...baseInputs.entries()].map(([id, box]) => [id, box.value === '' ? '' : num(box.value, 0)])),
@@ -117,8 +113,7 @@ function newProductForm(activeLocations) {
   return el('details', { class: 'card', open: state.products.length === 0 }, [
     el('summary', {}, [el('b', { text: 'Nieuw product toevoegen' })]),
     el('div', { class: 'row mt-2 align-end' }, [
-      field('Naam', fields.name, 'f-field-wide'), field('Art.nr', fields.sku), field('Categorie', fields.category),
-      field('Leverancier', fields.supplier), field('Eenheid', fields.unit), field('Per volle verpakking', fields.pack_size),
+      field('Naam', fields.name, 'f-field-wide'), field('Leverancier', fields.supplier), field('Eenheid', fields.unit), field('Per volle verpakking', fields.pack_size),
       field('Naam verpakking', fields.pack_label),
       ...activeLocations.map((loc) => field(`Basis ${loc.name}`, baseInputs.get(loc.id))),
       el('div', { class: 'f-fixed' }, [submit]),
@@ -133,7 +128,7 @@ function renderProducts(panel) {
     panel.append(el('div', { class: 'notice', text: 'Maak eerst een locatie aan; daarna kan je per locatie een basisstock invullen.' }));
   }
 
-  const search = el('input', { type: 'search', placeholder: 'zoek product, artikelnummer of categorie' });
+  const search = el('input', { type: 'search', placeholder: 'zoek een product of leverancier' });
   const card = el('section', { class: 'card' }, [
     el('div', { class: 'card__head' }, [
       el('h2', { text: `Producten van ${state.company ? state.company.name : '—'} (${state.products.length})` }),
@@ -145,8 +140,7 @@ function renderProducts(panel) {
   const tbody = el('tbody', {});
   const table = el('div', { class: 'table-wrap' }, [el('table', { class: 'table--edit' }, [
     el('thead', {}, [el('tr', {}, [
-      el('th', { text: 'Product' }), el('th', { text: 'Art.nr' }), el('th', { text: 'Categorie' }),
-      el('th', { text: 'Leverancier' }), el('th', { text: 'Eenheid' }), el('th', { text: 'Per verp.' }), el('th', { text: 'Verpakking' }),
+      el('th', { text: 'Product' }), el('th', { text: 'Leverancier' }), el('th', { text: 'Eenheid' }), el('th', { text: 'Per verp.' }), el('th', { text: 'Verpakking' }),
       ...activeLocations.map((l) => el('th', { class: 'num', text: `Basis ${l.name}` })),
       el('th', { text: '' }),
     ])]),
@@ -155,8 +149,8 @@ function renderProducts(panel) {
 
   const fill = (term = '') => {
     clear(tbody);
-    const list = state.products.filter((p) => !term || `${p.name} ${p.sku || ''} ${p.category || ''} ${p.supplier_name || ''}`.toLowerCase().includes(term));
-    if (!list.length) tbody.append(el('tr', {}, [el('td', { colspan: String(8 + activeLocations.length), class: 'muted', text: 'Geen producten gevonden.' })]));
+    const list = state.products.filter((p) => !term || `${p.name} ${p.supplier_name || ''}`.toLowerCase().includes(term));
+    if (!list.length) tbody.append(el('tr', {}, [el('td', { colspan: String(6 + activeLocations.length), class: 'muted', text: 'Geen producten gevonden.' })]));
     for (const p of list) tbody.append(productRow(p, activeLocations));
   };
   fill();
@@ -346,7 +340,7 @@ function renderImport(panel) {
       valuesRow,
       el('details', { class: 'mt-1' }, [
         el('summary', { text: 'Of een CSV plakken' }),
-        el('p', { class: 'small muted mt-1', text: 'Kolommen: Product · Artikelnummer · Eenheid · Verpakking · Verpakkingsnaam · Categorie · Leverancier, gevolgd door één kolom per locatie met de basisstock.' }),
+        el('p', { class: 'small muted mt-1', text: 'Kolommen: Product · Eenheid · Verpakking · Verpakkingsnaam · Leverancier, gevolgd door één kolom per locatie met de basisstock.' }),
         area,
       ]),
       el('div', { class: 'row mt-1' }, [preview, apply]),
@@ -440,6 +434,7 @@ function renderAccess(panel) {
 /* ---------------- instellingen ---------------- */
 
 function renderSettings(panel) {
+  const pin = el('input', { type: 'text', inputmode: 'numeric', maxlength: '8', id: 'app-pin', value: state.settings.pin || '' });
   const delimiter = el('select', { id: 'csv-delimiter' }, [
     el('option', { value: ';', text: 'Puntkomma ;  (Excel België/Nederland)' }),
     el('option', { value: ',', text: 'Komma ,' }),
@@ -449,15 +444,19 @@ function renderSettings(panel) {
   const save = el('button', { class: 'btn', text: 'Bewaren' });
   save.addEventListener('click', async () => {
     try {
-      const res = await api('/api/admin/settings', { method: 'POST', body: { csv_delimiter: delimiter.value } });
+      const res = await api('/api/admin/settings', { method: 'POST', body: { csv_delimiter: delimiter.value, pin: pin.value } });
       state.settings = res.settings;
-      toast('Instellingen bewaard.');
+      toast(res.settings.pin ? 'Instellingen bewaard. De nieuwe code geldt meteen; iedereen moet opnieuw invoeren.' : 'Instellingen bewaard. Er wordt geen code meer gevraagd.');
     } catch (err) { toast(err.message, true); }
   });
 
   panel.append(el('section', { class: 'card' }, [
     el('h2', { text: 'Algemene instellingen' }),
     el('p', { class: 'small muted', text: 'De naam, het adres en de voettekst op de bestelbon staan bij het bedrijf zelf (tab Bedrijven).' }),
+    el('div', { class: 'field-narrow mt-2' }, [
+      el('label', { for: 'app-pin', text: 'Toegangscode (4 tot 8 cijfers, leeg = geen code)' }), pin,
+      el('p', { class: 'small muted mt-1', text: 'Wie de tool opent, geeft eerst deze code. De browser onthoudt ze dertig dagen. Verander je de code, dan moet iedereen ze opnieuw invoeren.' }),
+    ]),
     el('div', { class: 'field-narrow mt-2' }, [el('label', { for: 'csv-delimiter', text: 'CSV-scheidingsteken' }), delimiter]),
     el('div', { class: 'mt-2' }, [save]),
   ]));

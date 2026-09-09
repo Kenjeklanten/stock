@@ -1,13 +1,12 @@
 /**
  * De bestellijst als Excel-werkboek, in dezelfde vorm als de bestellijst die STVV vandaag
  * met de hand invult: één tabblad per leverancier, één kolom per locatie, de producten in
- * blokken per categorie en achteraan een kolom Totaal.
+ * en achteraan een kolom Totaal.
  *
  *   rij 1  Bestelbon:            <datum>
  *   rij 3  (leeg) | Toog 1 | Toog 2 | … | Totaal
  *   rij 4  Artikel
  *   rij 5+ productnaam | te bestellen per locatie … | =SOM(…)
- *          daarna per categorie een leeg rij + kopregel met de categorienaam in kolom A
  */
 import { buildWorkbook, cellRef } from './xlsx.js';
 
@@ -19,7 +18,7 @@ const dateNl = (iso) => {
 
 /**
  * rows: platte regels uit de tellingen
- *   { supplier_id, supplier_name, supplier_sort, category, product_id, product_name,
+ *   { supplier_id, supplier_name, supplier_sort, product_id, product_name,
  *     product_sort, location_id, location_name, location_sort, order_qty }
  */
 export function buildBestellijst({ company, date, rows }) {
@@ -33,8 +32,7 @@ export function buildBestellijst({ company, date, rows }) {
     const supplier = suppliers.get(key);
     if (!supplier.products.has(r.product_id)) {
       supplier.products.set(r.product_id, {
-        id: r.product_id, name: r.product_name, category: r.category || '',
-        sort: r.product_sort ?? 0, qty: new Map(),
+        id: r.product_id, name: r.product_name, sort: r.product_sort ?? 0, qty: new Map(),
       });
     }
     const product = supplier.products.get(r.product_id);
@@ -56,16 +54,8 @@ export function buildBestellijst({ company, date, rows }) {
       const cols = [...(locationsOf.get(supplier.id ?? 0) || new Map()).values()]
         .sort((a, b) => a.sort - b.sort || String(a.name).localeCompare(b.name, 'nl'));
 
-      // volgorde van het beheerscherm; de categorieblokken volgen de volgorde waarin ze opduiken
       const products = [...supplier.products.values()]
         .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, 'nl'));
-      const blocks = [];
-      for (const product of products) {
-        let block = blocks.find((b) => b.category === product.category);
-        if (!block) { block = { category: product.category, products: [] }; blocks.push(block); }
-        block.products.push(product);
-      }
-      blocks.sort((a, b) => (a.category ? 1 : 0) - (b.category ? 1 : 0));   // het blok zonder categorie eerst
 
       const headRow = (label) => [
         { v: label, style: label ? 'block' : 'plain' },
@@ -77,27 +67,19 @@ export function buildBestellijst({ company, date, rows }) {
         [{ v: 'Bestelbon:', style: 'title' }, { v: dateNl(date), style: 'title' }],
         [],
       ];
-      blocks.forEach((block, index) => {
-        if (index > 0) rowsOut.push([]);                      // lege rij tussen de blokken
-        if (index === 0 && !block.category) {
-          rowsOut.push(headRow(''));                          // kopregel met de locaties
-          rowsOut.push([{ v: 'Artikel', style: 'block' }]);   // en daaronder "Artikel", zoals in de lijst
-        } else {
-          rowsOut.push(headRow(block.category || 'Artikel'));
-        }
-        for (const product of block.products) {
-          const rowNumber = rowsOut.length + 1;
-          rowsOut.push([
-            { v: product.name, style: 'name' },
-            ...cols.map((c) => {
-              const qty = product.qty.get(c.id) || 0;
-              return { v: qty > 0 ? qty : '', style: 'num' };
-            }),
-            { f: `SUM(${cellRef(2, rowNumber)}:${cellRef(cols.length + 1, rowNumber)})`, style: 'total' },
-          ]);
-        }
-      });
-      if (!products.length) rowsOut.push(headRow(''));
+      rowsOut.push(headRow(''));                        // kopregel met de locaties
+      rowsOut.push([{ v: 'Artikel', style: 'block' }]);  // en daaronder "Artikel", zoals in de lijst
+      for (const product of products) {
+        const rowNumber = rowsOut.length + 1;
+        rowsOut.push([
+          { v: product.name, style: 'name' },
+          ...cols.map((c) => {
+            const qty = product.qty.get(c.id) || 0;
+            return { v: qty > 0 ? qty : '', style: 'num' };
+          }),
+          { f: `SUM(${cellRef(2, rowNumber)}:${cellRef(cols.length + 1, rowNumber)})`, style: 'total' },
+        ]);
+      }
 
       return { name: supplier.name, widths: [32, ...cols.map(() => 12), 10], rows: rowsOut };
     });

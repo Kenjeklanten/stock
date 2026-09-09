@@ -49,8 +49,7 @@ function head() {
 
 function supplierCard(group) {
   const rows = group.lines.map((l) => el('tr', {}, [
-    el('td', { text: l.sku || '' }),
-    el('td', {}, [el('b', { text: l.product_name }), l.category ? el('div', { class: 'muted small', text: l.category }) : null]),
+    el('td', {}, [el('b', { text: l.product_name })]),
     el('td', { class: 'num', text: `${fmt(l.base_qty)} ${l.unit}` }),
     el('td', { class: 'num', text: countedText(l) }),
     el('td', { class: 'num', text: fmt(l.shortage) }),
@@ -71,7 +70,7 @@ function supplierCard(group) {
     el('div', { class: 'table-wrap' }, [
       el('table', {}, [
         el('thead', {}, [el('tr', {}, [
-          el('th', { text: 'Art.nr' }), el('th', { text: 'Product' }),
+          el('th', { text: 'Product' }),
           el('th', { class: 'num', text: 'Basis' }), el('th', { class: 'num', text: 'Geteld' }),
           el('th', { class: 'num', text: 'Tekort' }), el('th', { class: 'num', text: 'Bestellen' }),
           el('th', { text: 'Verpakking' }),

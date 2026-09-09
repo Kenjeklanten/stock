@@ -25,12 +25,12 @@ export const onRequestGet = handler(async ({ params, request, env, data }) => {
     ? (supplier === null ? lines : lines.filter((l) => String(l.supplier_id ?? 0) === String(supplier)))
     : groupBySupplier(lines, supplier === null ? null : supplier).flatMap((g) => g.lines);
 
-  const headers = ['Leverancier', 'Klantnummer', 'Artikelnummer', 'Product', 'Categorie', 'Eenheid',
+  const headers = ['Leverancier', 'Klantnummer', 'Product', 'Eenheid',
     'Verpakking', 'Basisstock', 'Geteld volle pakken', 'Geteld losse stuks', 'Geteld totaal',
     'Tekort', 'Te bestellen', 'Aantal verpakkingen'];
   const notCounted = (l) => l.counted_qty === null || l.counted_qty === undefined;
   const rows = selected.map((l) => [
-    l.supplier_name || '', l.customer_ref || '', l.sku || '', l.product_name, l.category || '', l.unit || 'stuk',
+    l.supplier_name || '', l.customer_ref || '', l.product_name, l.unit || 'stuk',
     l.pack_label || (Number(l.pack_size) > 1 ? `${fmt(l.pack_size)} ${l.unit || 'stuk'}` : ''),
     fmt(l.base_qty),
     notCounted(l) || l.counted_packs === null || l.counted_packs === undefined ? '' : fmt(l.counted_packs),

@@ -5,7 +5,7 @@ import { api, toast, fmt, num, today, el, clear, qs, draft, params, mountHeader,
 const state = {
   companyId: null, locationId: null, countId: null, countedOn: null,
   products: [], values: new Map(),
-  onlyTodo: false, filter: '', groupBy: 'category',
+  onlyTodo: false, filter: '',
 };
 
 const filled = (v) => {
@@ -34,16 +34,15 @@ const valueOf = (id) => state.values.get(id) || { packs: '', loose: '' };
 const totalOf = (p) => { const v = valueOf(p.id); return countedTotal(v.packs, v.loose, p.pack_size); };
 const packName = (p) => p.pack_label || `${fmt(p.pack_size)} ${p.unit}`;
 
+/** De producten staan per leverancier, in de volgorde van het beheerscherm. */
 function groupsOf(products) {
-  if (state.groupBy === 'none') return [['Alle producten', products]];
-  const key = state.groupBy === 'supplier' ? (p) => p.supplier_name || 'Zonder leverancier' : (p) => p.category || 'Overige';
   const map = new Map();
   for (const p of products) {
-    const k = key(p);
+    const k = p.supplier_name || 'Zonder leverancier';
     if (!map.has(k)) map.set(k, []);
     map.get(k).push(p);
   }
-  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'nl'));
+  return [...map.entries()];
 }
 
 function resultText(p) {
@@ -91,9 +90,7 @@ function itemRow(p) {
       el('div', { class: 'item__name', text: p.name }),
       el('div', { class: 'item__meta' }, [
         el('span', { class: 'tag tag--grape', text: `basis ${fmt(p.base_qty)} ${p.unit}` }),
-        p.sku ? el('span', { text: `art. ${p.sku}` }) : null,
         hasPacks ? el('span', { text: `1 pak = ${fmt(p.pack_size)} ${p.unit}` }) : null,
-        state.groupBy !== 'supplier' && p.supplier_name ? el('span', { text: p.supplier_name }) : null,
       ]),
     ]),
     el('div', { class: 'count-fields' }, hasPacks
@@ -109,7 +106,7 @@ function render() {
   const list = clear(qs('#list'));
   const term = state.filter.trim().toLowerCase();
   let visible = state.products;
-  if (term) visible = visible.filter((p) => `${p.name} ${p.sku || ''} ${p.category || ''} ${p.supplier_name || ''}`.toLowerCase().includes(term));
+  if (term) visible = visible.filter((p) => `${p.name} ${p.supplier_name || ''}`.toLowerCase().includes(term));
   if (state.onlyTodo) visible = visible.filter((p) => totalOf(p) === null);
 
   if (!visible.length) {
@@ -263,7 +260,6 @@ async function init() {
   const select = qs('#location');
   select.addEventListener('change', () => loadLocation(num(select.value, null)).catch((e) => toast(e.message, true)));
   qs('#search').addEventListener('input', (e) => { state.filter = e.target.value; render(); });
-  qs('#group-by').addEventListener('change', (e) => { state.groupBy = e.target.value; render(); });
   qs('#toggle-todo').addEventListener('click', (e) => {
     state.onlyTodo = !state.onlyTodo;
     e.target.textContent = state.onlyTodo ? 'Alle producten tonen' : 'Enkel niet-getelde tonen';

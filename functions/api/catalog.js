@@ -47,14 +47,14 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
 
   if (locationId) {
     const products = await D.prepare(
-      `SELECT p.id, p.name, p.sku, p.unit, p.pack_size, p.pack_label, p.category, p.supplier_id,
+      `SELECT p.id, p.name, p.unit, p.pack_size, p.pack_label, p.supplier_id,
               s.name AS supplier_name, p.sort, pl.base_qty
          FROM par_levels pl
          JOIN products p    ON p.id = pl.product_id
          JOIN locations l   ON l.id = pl.location_id
          LEFT JOIN suppliers s ON s.id = p.supplier_id
         WHERE pl.location_id = ?1 AND l.company_id = ?2 AND p.active = 1
-        ORDER BY IFNULL(NULLIF(p.category, ''), 'zzz'), p.sort, p.name`
+        ORDER BY IFNULL(s.sort, 999), IFNULL(s.name, 'zzz'), p.sort, p.name`
     ).bind(locationId, companyId).all();
     out.products = products.results || [];
     out.last_count = await D.prepare(
@@ -62,11 +62,11 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
     ).bind(locationId).first() || null;
   } else if (all) {
     const products = await D.prepare(
-      `SELECT p.id, p.name, p.sku, p.unit, p.pack_size, p.pack_label, p.category, p.supplier_id,
+      `SELECT p.id, p.name, p.unit, p.pack_size, p.pack_label, p.supplier_id,
               s.name AS supplier_name, p.sort, p.active
          FROM products p LEFT JOIN suppliers s ON s.id = p.supplier_id
         WHERE p.company_id = ?1
-        ORDER BY IFNULL(NULLIF(p.category, ''), 'zzz'), p.sort, p.name`
+        ORDER BY IFNULL(s.sort, 999), IFNULL(s.name, 'zzz'), p.sort, p.name`
     ).bind(companyId).all();
     const pars = await D.prepare(
       `SELECT pl.location_id, pl.product_id, pl.base_qty
