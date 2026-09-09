@@ -3,7 +3,7 @@
 import { api, toast, fmt, num, today, el, clear, qs, draft, params, mountHeader, dateNl } from './app.js';
 
 const state = {
-  companyId: null, locationId: null, countId: null,
+  companyId: null, locationId: null, countId: null, countedOn: null,
   products: [], values: new Map(),
   onlyTodo: false, filter: '', groupBy: 'category',
 };
@@ -134,9 +134,12 @@ function updateStats() {
   qs('#bar').hidden = !state.products.length;
 }
 
+// De telling is altijd van vandaag; bij het aanpassen van een oudere telling blijft haar datum staan.
+const dayOf = () => state.countedOn || today();
+
 const saveDraft = () => {
   if (!state.locationId || state.countId) return;
-  draft.save(state.locationId, qs('#date').value, [...state.values.entries()]);
+  draft.save(state.locationId, dayOf(), [...state.values.entries()]);
 };
 
 async function loadLocation(locationId, { keepValues = false } = {}) {
@@ -154,7 +157,7 @@ async function loadLocation(locationId, { keepValues = false } = {}) {
 
   if (!keepValues) {
     state.values = new Map();
-    const saved = draft.load(locationId, qs('#date').value);
+    const saved = draft.load(locationId, dayOf());
     if (saved && Array.isArray(saved.values) && saved.values.length) {
       state.values = new Map(saved.values.filter(([id]) => state.products.some((p) => p.id === id)));
       if (state.values.size) toast(`Klad hersteld: ${state.values.size} ingevulde producten.`);
@@ -177,10 +180,10 @@ async function loadExisting(countId) {
   const data = await api(`/api/counts/${countId}`);
   state.countId = countId;
   state.companyId = data.count.company_id;
+  state.countedOn = data.count.counted_on;
   qs('#page-title').textContent = `Telling ${countId} aanpassen`;
-  qs('#page-intro').textContent = 'Pas de getelde aantallen aan en bewaar; de bestelling wordt opnieuw berekend.';
+  qs('#page-intro').textContent = `Telling van ${dateNl(data.count.counted_on)}${data.count.created_by ? ` door ${data.count.created_by}` : ''}. Pas de getelde aantallen aan en bewaar; de bestelling wordt opnieuw berekend.`;
   qs('#btn-save').textContent = 'Bewaren';
-  qs('#date').value = data.count.counted_on;
   qs('#note').value = data.count.note || '';
   await fillLocations();
   qs('#location').value = String(data.count.location_id);
@@ -211,7 +214,7 @@ async function save() {
   button.disabled = true;
   const payload = {
     location_id: state.locationId,
-    counted_on: qs('#date').value || today(),
+    counted_on: dayOf(),
     note: qs('#note').value,
     lines: state.products.map((p) => {
       const v = valueOf(p.id);
@@ -242,7 +245,7 @@ async function fillLocations() {
 async function init() {
   const header = await mountHeader('telling');
   state.companyId = header.companyId;
-  qs('#date').value = today();
+  qs('#today').textContent = dateNl(today());
 
   const editId = params().get('count');
   if (editId) return loadExisting(num(editId, null));
@@ -259,7 +262,6 @@ async function init() {
   const active = await fillLocations();
   const select = qs('#location');
   select.addEventListener('change', () => loadLocation(num(select.value, null)).catch((e) => toast(e.message, true)));
-  qs('#date').addEventListener('change', () => { if (!state.countId) saveDraft(); });
   qs('#search').addEventListener('input', (e) => { state.filter = e.target.value; render(); });
   qs('#group-by').addEventListener('change', (e) => { state.groupBy = e.target.value; render(); });
   qs('#toggle-todo').addEventListener('click', (e) => {
