@@ -4,6 +4,18 @@ import { api, toast, fmt, el, clear, qs, params, mountHeader, dateNl, plural } f
 let data = null;
 const id = params().get('id');
 
+/** Ontvangstcontrole: wat er geleverd is, met het verschil tegenover de bestelling. */
+const receivedCell = (line) => {
+  if (line.received_qty === null || line.received_qty === undefined) return el('span', { class: 'muted', text: '—' });
+  const diff = Number(line.received_diff || 0);
+  return el('span', {}, [
+    `${fmt(line.received_qty)} ${line.unit} `,
+    Math.abs(diff) < 0.001
+      ? el('span', { class: 'tag tag--mint', text: 'klopt' })
+      : el('span', { class: diff < 0 ? 'tag tag--danger' : 'tag tag--sun', text: `${diff > 0 ? '+' : ''}${fmt(diff)}` }),
+  ]);
+};
+
 const packText = (line) => (Number(line.pack_size) > 1
   ? `${fmt(line.order_packs)} × ${line.pack_label || `${fmt(line.pack_size)} ${line.unit}`}` : '');
 
@@ -15,6 +27,12 @@ const countedText = (line) => {
   return `${fmt(line.counted_qty)}${split}`;
 };
 
+const statusText = (c) => {
+  if (c.status === 'geleverd') return `geleverd op ${dateNl((c.received_at || '').slice(0, 10))}`;
+  if (c.status === 'besteld') return `besteld op ${dateNl((c.ordered_at || '').slice(0, 10))}`;
+  return 'nog niet besteld';
+};
+
 function head() {
   const c = data.count;
   const totalUnits = data.orders.reduce((a, g) => a + g.lines.reduce((b, l) => b + Number(l.order_qty), 0), 0);
@@ -23,9 +41,10 @@ function head() {
   return el('section', { class: 'card' }, [
     el('div', { class: 'card__head' }, [
       el('h1', { text: `Bestelling ${c.location_name}` }),
-      el('span', { class: c.status === 'besteld' ? 'tag tag--mint' : 'tag tag--sun', text: c.status === 'besteld' ? `besteld op ${dateNl((c.ordered_at || '').slice(0, 10))}` : 'nog niet besteld' }),
+      el('span', { class: c.status === 'open' ? 'tag tag--sun' : 'tag tag--mint', text: statusText(c) }),
     ]),
     el('p', { class: 'muted small', text: `${c.company_name} · telling ${c.id} · ${dateNl(c.counted_on)}${c.created_by ? ` · geteld door ${c.created_by}` : ''}${c.note ? ` · ${c.note}` : ''}` }),
+    afwijkingen(),
     el('p', {}, [
       el('b', { text: plural(data.orders.reduce((a, g) => a + g.lines.length, 0), 'bestelregel', 'bestelregels') }),
       ` · ${fmt(totalUnits)} eenheden · ${plural(data.orders.length, 'leverancier', 'leveranciers')}`,
@@ -38,12 +57,26 @@ function head() {
       el('a', { class: 'btn btn--ghost', href: `/api/counts/${c.id}/csv`, text: 'Bestelling (CSV)' }),
       el('a', { class: 'btn btn--ghost', href: `/api/counts/${c.id}/csv?scope=all`, text: 'Volledig telblad (CSV)' }),
       el('a', { class: 'btn btn--ghost', href: `/?count=${c.id}`, text: 'Telling aanpassen' }),
+      data.orders.length ? el('a', { class: 'btn btn--secondary', href: `/ontvangst?id=${c.id}`, text: c.received_at ? 'Levering nakijken' : 'Levering inboeken' }) : null,
       el('button', {
         class: c.status === 'besteld' ? 'btn btn--ghost' : 'btn btn--secondary',
         onclick: () => setStatus(c.status === 'besteld' ? 'open' : 'besteld'),
         text: c.status === 'besteld' ? 'Terug op open zetten' : 'Markeer als besteld',
       }),
     ]),
+  ]);
+}
+
+/** Eén regel met de leveringen die niet klopten — het is de reden waarom je nakijkt. */
+function afwijkingen() {
+  const lines = data.lines.filter((l) => l.order_qty > 0 && l.received_qty !== null && l.received_qty !== undefined
+    && Math.abs(Number(l.received_diff || 0)) >= 0.001);
+  if (!lines.length) return null;
+  const tekort = lines.filter((l) => Number(l.received_diff) < 0);
+  return el('div', { class: 'notice notice--warn mt-2' }, [
+    el('b', { text: `${plural(lines.length, 'afwijking', 'afwijkingen')} bij de levering` }),
+    ` — ${tekort.length ? `${plural(tekort.length, 'product', 'producten')} te weinig` : 'alles te veel geleverd'}: `,
+    lines.map((l) => `${l.product_name} ${Number(l.received_diff) > 0 ? '+' : ''}${fmt(l.received_diff)} ${l.unit}`).join(', '),
   ]);
 }
 
@@ -55,6 +88,7 @@ function supplierCard(group) {
     el('td', { class: 'num', text: fmt(l.shortage) }),
     el('td', { class: 'num' }, [el('b', { text: `${fmt(l.order_qty)} ${l.unit}` })]),
     el('td', { text: packText(l) }),
+    el('td', { class: 'num' }, [receivedCell(l)]),
   ]));
 
   const units = group.lines.reduce((a, l) => a + Number(l.order_qty), 0);
@@ -73,7 +107,7 @@ function supplierCard(group) {
           el('th', { text: 'Product' }),
           el('th', { class: 'num', text: 'Basis' }), el('th', { class: 'num', text: 'Geteld' }),
           el('th', { class: 'num', text: 'Tekort' }), el('th', { class: 'num', text: 'Bestellen' }),
-          el('th', { text: 'Verpakking' }),
+          el('th', { text: 'Verpakking' }), el('th', { class: 'num', text: 'Geleverd' }),
         ])]),
         el('tbody', {}, rows),
       ]),

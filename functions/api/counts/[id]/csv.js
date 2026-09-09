@@ -27,7 +27,7 @@ export const onRequestGet = handler(async ({ params, request, env, data }) => {
 
   const headers = ['Leverancier', 'Klantnummer', 'Product', 'Eenheid',
     'Verpakking', 'Basisstock', 'Geteld volle pakken', 'Geteld losse stuks', 'Geteld totaal',
-    'Tekort', 'Te bestellen', 'Aantal verpakkingen'];
+    'Tekort', 'Te bestellen', 'Aantal verpakkingen', 'Geleverd', 'Verschil'];
   const notCounted = (l) => l.counted_qty === null || l.counted_qty === undefined;
   const rows = selected.map((l) => [
     l.supplier_name || '', l.customer_ref || '', l.product_name, l.unit || 'stuk',
@@ -37,6 +37,8 @@ export const onRequestGet = handler(async ({ params, request, env, data }) => {
     notCounted(l) || l.counted_loose === null || l.counted_loose === undefined ? '' : fmt(l.counted_loose),
     notCounted(l) ? '' : fmt(l.counted_qty),
     fmt(l.shortage), fmt(l.order_qty), fmt(orderPacks(l.order_qty, l.pack_size)),
+    l.received_qty === null || l.received_qty === undefined ? '' : fmt(l.received_qty),
+    l.received_diff === null || l.received_diff === undefined ? '' : fmt(l.received_diff),
   ]);
 
   const name = `${all ? 'telling' : 'bestelling'}-${slug(count.company_name)}-${slug(count.location_name)}-${count.counted_on}` +

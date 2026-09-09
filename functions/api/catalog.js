@@ -26,8 +26,10 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
       ...data.user,
       super_admin: scope.canAdminister,
       can_manage: companyId ? mayManage(scope, companyId) : false,
+      // met welke toegangscode deze browser binnen is (null = geen code ingesteld)
+      code: scope.code,
       // welke bedrijven deze persoon mag beheren: 'all' of een lijst met nummers
-      manageable: scope.superAdmin
+      manageable: scope.manageAll
         ? 'all'
         : [...scope.roles.entries()].filter(([, role]) => role === 'beheerder').map(([id]) => id),
     },

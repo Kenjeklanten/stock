@@ -17,7 +17,7 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
     requireCompany(scope, companyId);
     args.push(companyId);
     where.push(`c.company_id = ?${args.length}`);
-  } else if (!scope.open && !scope.superAdmin) {
+  } else if (!scope.viewAll) {
     // zonder gekozen bedrijf: enkel de bedrijven waar deze persoon bij hoort
     const ids = [...scope.roles.keys()];
     if (!ids.length) return json({ counts: [] });

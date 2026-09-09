@@ -19,7 +19,7 @@ function row(c) {
     el('td', { class: 'small', text: c.created_by || '—' }),
     el('td', { class: 'num', text: String(c.counted_lines) }),
     el('td', { class: 'num' }, [c.order_lines > 0 ? el('b', { text: String(c.order_lines) }) : el('span', { class: 'muted', text: '0' })]),
-    el('td', {}, [el('span', { class: c.status === 'besteld' ? 'tag tag--mint' : 'tag tag--sun', text: c.status })]),
+    el('td', {}, [el('span', { class: c.status === 'open' ? 'tag tag--sun' : 'tag tag--mint', text: c.status })]),
     el('td', {}, [
       el('div', { class: 'row' }, [
         el('a', { class: 'btn btn--sm btn--ghost', href: `/bestelling?id=${c.id}`, text: 'Bekijk' }),

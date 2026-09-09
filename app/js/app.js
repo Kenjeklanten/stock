@@ -175,8 +175,19 @@ export async function mountHeader(active) {
 
   const who = qs('.who');
   if (who && data.user) {
-    if (data.user.protected && data.user.email) who.textContent = `Aangemeld als ${data.user.email}${data.user.admin ? '' : ' · geen beheerrechten'}`;
-    else if (!data.user.protected) who.textContent = 'Let op: deze omgeving staat niet achter Cloudflare Access.';
+    clear(who);
+    const code = data.user.code;
+    if (code) {
+      who.append(el('span', { text: code.label }), ' ');
+      who.append(el('button', {
+        class: 'linkish', text: 'andere code',
+        onclick: async () => { await api('/api/pin', { method: 'DELETE' }, false); location.reload(); },
+      }));
+    } else if (data.user.protected && data.user.email) {
+      who.append(el('span', { text: `Aangemeld als ${data.user.email}${data.user.admin ? '' : ' · geen beheerrechten'}` }));
+    } else if (!data.user.protected) {
+      who.append(el('span', { text: 'Let op: deze omgeving staat niet achter Cloudflare Access.' }));
+    }
   }
   const select = qs('#company');
   const active_companies = result.companies.filter((c) => c.active);

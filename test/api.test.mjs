@@ -22,6 +22,9 @@ import * as countApi from '../functions/api/counts/[id].js';
 import * as csvApi from '../functions/api/counts/[id]/csv.js';
 import * as pdfApi from '../functions/api/counts/[id]/pdf.js';
 import * as xlsxApi from '../functions/api/export/xlsx.js';
+import * as receiptApi from '../functions/api/counts/[id]/receipt.js';
+import * as codesApi from '../functions/api/admin/codes.js';
+import * as dashboardApi from '../functions/api/dashboard.js';
 import { bestellijstNaam } from '../functions/_lib/bestellijst.js';
 
 const schema = join(dirname(fileURLToPath(import.meta.url)), '..', 'schema.sql');
@@ -435,4 +438,155 @@ test('xlsx-import: getallen in bakken worden omgerekend naar stuks', async () =>
     }] },
   })));
   assert.match(dubbel.report.warnings.join(' '), /staat al onder/);
+});
+
+test('ontvangstcontrole: geleverde aantallen en het verschil met de bestelling', async () => {
+  const env = newEnv();
+  const ids = await seed(env);
+  // basis 48 blik cola (2 bakken), niets geteld → 48 te bestellen; chips: basis 20, 5 geteld → 15
+  const { id } = await asJson(await countsApi.onRequestPost(ctx(env, {
+    method: 'POST',
+    body: { location_id: ids.loc, lines: [
+      { product_id: ids.cola, packs: 0, loose: 0 },
+      { product_id: ids.chips, loose: 5 },
+    ] },
+  })));
+
+  // één bak van 24 te weinig geleverd, chips kloppen
+  const na = await asJson(await receiptApi.onRequestPut(ctx(env, {
+    method: 'PUT', params: { id: String(id) },
+    body: { lines: [
+      { product_id: ids.cola, packs: 1, loose: 0 },
+      { product_id: ids.chips, loose: 15 },
+    ] },
+  })));
+  const cola = na.lines.find((l) => l.product_id === ids.cola);
+  const chips = na.lines.find((l) => l.product_id === ids.chips);
+  assert.equal(cola.order_qty, 48);
+  assert.equal(cola.received_qty, 24, '1 bak van 24');
+  assert.equal(cola.received_diff, -24, 'een bak te weinig');
+  assert.equal(chips.received_diff, 0, 'chips kloppen');
+  assert.equal(na.count.status, 'open', 'tussentijds bewaren sluit de levering niet af');
+
+  // niet ingevulde regels blijven "nog niet nagekeken"
+  const servet = na.lines.find((l) => l.product_id === ids.servet);
+  assert.equal(servet.received_qty, null);
+
+  const af = await asJson(await receiptApi.onRequestPut(ctx(env, {
+    method: 'PUT', params: { id: String(id) }, body: { lines: [], complete: true },
+  })));
+  assert.equal(af.count.status, 'geleverd');
+  assert.ok(af.count.received_at, 'het tijdstip van nakijken wordt bewaard');
+  assert.equal(af.lines.find((l) => l.product_id === ids.cola).received_qty, 24, 'wat al ingevuld was, blijft staan');
+
+  // een afgesloten telling laat zich niet meer aanpassen
+  const geblokkeerd = await countApi.onRequestPut(ctx(env, { method: 'PUT', params: { id: String(id) }, body: { lines: [] } }));
+  assert.equal(geblokkeerd.status, 409);
+
+  // de CSV draagt de ontvangst mee
+  const csv = await (await csvApi.onRequestGet(ctx(env, { params: { id: String(id) }, url: 'https://x/api/counts/1/csv' }))).text();
+  assert.match(csv, /Geleverd/);
+  assert.match(csv, /-24/);
+});
+
+test('toegangscode bepaalt mee wat je mag zien en doen', async () => {
+  const env = newEnv();
+  const stvv = await seed(env);
+  const bistro = await asJson(await companiesApi.onRequestPost(ctx(env, { method: 'POST', body: { name: 'Bistro het Vinne' } })));
+
+  const teller = { email: '', admin: true, admin_listed: false, admin_list_set: false, protected: false,
+    code: { label: 'Tellen STVV', role: 'teller', company_id: stvv.co, company_name: 'STVV' } };
+  const alles = { email: '', admin: true, admin_listed: false, admin_list_set: false, protected: false,
+    code: { label: 'Volledige toegang', role: 'beheerder', company_id: null } };
+
+  // de tellercode ziet enkel STVV
+  const beperkt = await asJson(await catalogApi.onRequestGet(ctx(env, { url: 'https://x/api/catalog', user: teller })));
+  assert.deepEqual(beperkt.companies.map((c) => c.name), ['STVV']);
+  assert.equal(beperkt.user.can_manage, false);
+  assert.deepEqual(beperkt.user.manageable, []);
+  assert.equal(beperkt.user.code.label, 'Tellen STVV');
+
+  // en komt niet aan het andere bedrijf
+  const verboden = await catalogApi.onRequestGet(ctx(env, { url: `https://x/api/catalog?company_id=${bistro.id}`, user: teller }));
+  assert.equal(verboden.status, 403);
+
+  // tellen mag wel
+  const telling = await countsApi.onRequestPost(ctx(env, {
+    method: 'POST', user: teller,
+    body: { location_id: stvv.loc, lines: [{ product_id: stvv.cola, packs: 1 }] },
+  }));
+  assert.equal(telling.status, 201);
+
+  // beheren niet
+  const nieuw = await locationsApi.onRequestPost(ctx(env, {
+    method: 'POST', user: teller, body: { company_id: stvv.co, name: 'Toog 9' },
+  }));
+  assert.equal(nieuw.status, 403);
+
+  // de volledige code mag alles
+  const volledig = await asJson(await catalogApi.onRequestGet(ctx(env, { url: 'https://x/api/catalog', user: alles })));
+  assert.equal(volledig.companies.length, 2);
+  assert.equal(volledig.user.manageable, 'all');
+});
+
+test('toegangscodes beheren: de laatste volledige code blijft staan', async () => {
+  const env = newEnv();
+  const ids = await seed(env);
+  // schema.sql zet '1011' klaar als code met volledige toegang
+  let codes = (await asJson(await codesApi.onRequestGet(ctx(env)))).codes;
+  assert.deepEqual(codes.map((c) => c.code), ['1011']);
+
+  const laatste = await codesApi.onRequestDelete(ctx(env, { method: 'DELETE', url: 'https://x/api/admin/codes?code=1011' }));
+  assert.equal(laatste.status, 409, 'de enige volledige code laat zich niet wissen');
+
+  codes = (await asJson(await codesApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { code: '8956', label: 'Tellen STVV', role: 'teller', company_id: ids.co },
+  })))).codes;
+  assert.equal(codes.length, 2);
+  assert.equal(codes.find((c) => c.code === '8956').company_name, 'STVV');
+
+  const kort = await codesApi.onRequestPost(ctx(env, { method: 'POST', body: { code: '12', label: 'te kort' } }));
+  assert.equal(kort.status, 400);
+
+  // een tellercode komt niet in het codebeheer
+  const teller = { email: '', admin: true, admin_list_set: false, protected: false,
+    code: { label: 'Tellen STVV', role: 'teller', company_id: ids.co } };
+  assert.equal((await codesApi.onRequestGet(ctx(env, { user: teller }))).status, 403);
+});
+
+test('overzicht: wat er vandaag geteld en te bestellen is', async () => {
+  const env = newEnv();
+  const ids = await seed(env);
+  const leeg = await asJson(await dashboardApi.onRequestGet(ctx(env, { url: `https://x/api/dashboard?company_id=${ids.co}` })));
+  assert.equal(leeg.counted_today.length, 0);
+  assert.deepEqual(leeg.not_counted_today.map((l) => l.name), ['Bar tribune 1', 'Magazijn']);
+  assert.match(leeg.warnings.join(' '), /Servetten|zonder leverancier/);
+
+  // twee tellingen van vandaag op dezelfde locatie zouden dubbel tellen; hier één telling
+  const { id } = await asJson(await countsApi.onRequestPost(ctx(env, {
+    method: 'POST',
+    body: { location_id: ids.loc, lines: [{ product_id: ids.cola, packs: 1 }, { product_id: ids.chips, loose: 5 }] },
+  })));
+
+  let dash = await asJson(await dashboardApi.onRequestGet(ctx(env, { url: `https://x/api/dashboard?company_id=${ids.co}` })));
+  assert.equal(dash.counted_today.length, 1);
+  const drank = dash.to_order.find((g) => g.supplier_name === 'Drankencentrale');
+  assert.equal(drank.lines.find((l) => l.product_name === 'Cola 33cl').order_qty, 24, '48 basis − 24 geteld = 1 bak');
+  assert.equal(drank.lines.find((l) => l.product_name === 'Chips paprika').order_qty, 15);
+
+  // eens besteld verdwijnt ze uit 'te bestellen' en verschijnt ze bij 'na te kijken'
+  await countApi.onRequestPatch(ctx(env, { method: 'PATCH', params: { id: String(id) }, body: { status: 'besteld' } }));
+  dash = await asJson(await dashboardApi.onRequestGet(ctx(env, { url: `https://x/api/dashboard?company_id=${ids.co}` })));
+  assert.equal(dash.to_order.length, 0);
+  assert.equal(dash.open_orders.length, 1);
+  assert.equal(dash.open_orders[0].location_name, 'Bar tribune 1');
+
+  // een levering die niet klopt, komt in het overzicht
+  await receiptApi.onRequestPut(ctx(env, {
+    method: 'PUT', params: { id: String(id) }, body: { lines: [{ product_id: ids.cola, packs: 0, loose: 12 }], complete: true },
+  }));
+  dash = await asJson(await dashboardApi.onRequestGet(ctx(env, { url: `https://x/api/dashboard?company_id=${ids.co}` })));
+  assert.equal(dash.open_orders.length, 0, 'nagekeken leveringen staan niet meer open');
+  assert.equal(dash.differences.length, 1);
+  assert.equal(dash.differences[0].diff, -12);
 });

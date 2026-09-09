@@ -27,7 +27,9 @@ export const onRequestPut = handler(async ({ params, request, env, data }) => {
 
   const count = await D.prepare('SELECT id, location_id, status FROM counts WHERE id = ?1').bind(id).first();
   if (!count) throw new HttpError('Telling niet gevonden.', 404);
-  if (count.status === 'besteld') throw new HttpError('Deze telling is al besteld. Zet ze eerst terug op open.', 409);
+  if (count.status !== 'open') {
+    throw new HttpError(`Deze telling is al ${count.status}. Zet ze eerst terug op open.`, 409);
+  }
 
   if (isDate(input.counted_on) || input.note !== undefined) {
     await D.prepare("UPDATE counts SET counted_on = COALESCE(?2, counted_on), note = COALESCE(?3, note), updated_at = datetime('now') WHERE id = ?1")
@@ -39,15 +41,17 @@ export const onRequestPut = handler(async ({ params, request, env, data }) => {
   return json({ ...detail, orders: groupBySupplier(detail.lines) });
 });
 
-/** PATCH /api/counts/:id — status wijzigen (open ⇄ besteld). */
+/** PATCH /api/counts/:id — status wijzigen (open ⇄ besteld ⇄ geleverd). */
 export const onRequestPatch = handler(async ({ params, request, env, data }) => {
   const D = db(env);
   const id = idOf(params);
   requireCompany(await scopeFor(D, data.user), await companyOfCount(D, id));
   const input = (await body(request)) || {};
-  const status = input.status === 'besteld' ? 'besteld' : 'open';
+  const status = ['besteld', 'geleverd'].includes(input.status) ? input.status : 'open';
+  // 'ordered_at' blijft staan zodra er besteld is; enkel terug op open zetten wist het.
   const res = await D.prepare(
-    `UPDATE counts SET status = ?2, ordered_at = CASE WHEN ?2 = 'besteld' THEN datetime('now') ELSE NULL END,
+    `UPDATE counts SET status = ?2,
+            ordered_at = CASE WHEN ?2 = 'open' THEN NULL ELSE COALESCE(ordered_at, datetime('now')) END,
             updated_at = datetime('now') WHERE id = ?1`
   ).bind(id, status).run();
   if (!res.meta.changes) throw new HttpError('Telling niet gevonden.', 404);

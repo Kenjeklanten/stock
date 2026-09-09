@@ -1,5 +1,5 @@
 import { HttpError } from './http.js';
-import { orderQty, orderPacks, shortage, countedTotal, filled } from './order.js';
+import { orderQty, orderPacks, shortage, countedTotal, receiptDiff, filled } from './order.js';
 
 /** Volledige telling + bestelregels, gegroepeerd per leverancier. */
 export async function loadCount(D, id) {
@@ -17,6 +17,7 @@ export async function loadCount(D, id) {
   const lines = await D.prepare(
     `SELECT cl.product_id, cl.product_name, cl.counted_qty, cl.counted_packs, cl.counted_loose,
             cl.base_qty, cl.pack_size, cl.order_qty,
+            cl.received_packs, cl.received_loose, cl.received_qty,
             p.unit, p.pack_label, p.supplier_id, s.name AS supplier_name,
             s.email AS supplier_email, s.customer_ref, p.sort
        FROM count_lines cl
@@ -33,6 +34,7 @@ export async function loadCount(D, id) {
     unit: r.unit || 'stuk',
     shortage: shortage(r.base_qty, r.counted_qty),
     order_packs: orderPacks(r.order_qty, r.pack_size),
+    received_diff: receiptDiff(r.order_qty, r.received_qty),
   }));
 
   return {
@@ -100,5 +102,42 @@ export async function saveLines(D, countId, locationId, input) {
       orderQty(prod.base_qty, qty, prod.pack_size)));
   }
   statements.push(D.prepare("UPDATE counts SET updated_at = datetime('now') WHERE id = ?1").bind(countId));
+  await D.batch(statements);
+}
+
+/**
+ * Ontvangstcontrole: noteert per product wat er effectief geleverd is (volle pakken +
+ * losse stuks). Enkel de regels die meegestuurd worden, worden bijgewerkt; een regel op
+ * null zetten betekent "toch nog niet nagekeken".
+ *
+ * `complete` zet de telling op 'geleverd' en houdt bij wie ze wanneer heeft nagekeken.
+ */
+export async function saveReceipt(D, countId, input, { complete = false, by = '' } = {}) {
+  const known = await D.prepare(
+    'SELECT product_id, pack_size FROM count_lines WHERE count_id = ?1'
+  ).bind(countId).all();
+  const packs = new Map((known.results || []).map((r) => [r.product_id, r.pack_size]));
+  if (!packs.size) throw new HttpError('Deze telling heeft geen regels.', 400);
+
+  const update = D.prepare(
+    `UPDATE count_lines SET received_packs = ?3, received_loose = ?4, received_qty = ?5
+      WHERE count_id = ?1 AND product_id = ?2`
+  );
+  const statements = [];
+  for (const line of Array.isArray(input) ? input : []) {
+    const pid = Number(line.product_id);
+    if (!packs.has(pid)) continue;
+    const p = filled(line.packs), l = filled(line.loose);
+    const qty = countedTotal(p, l, packs.get(pid));
+    statements.push(update.bind(countId, pid, p, l, qty));
+  }
+  if (!statements.length && !complete) throw new HttpError('Er is niets ingevuld.', 400);
+
+  statements.push(complete
+    ? D.prepare(
+        `UPDATE counts SET status = 'geleverd', received_at = datetime('now'), received_by = ?2,
+                updated_at = datetime('now') WHERE id = ?1`
+      ).bind(countId, by || null)
+    : D.prepare("UPDATE counts SET updated_at = datetime('now') WHERE id = ?1").bind(countId));
   await D.batch(statements);
 }

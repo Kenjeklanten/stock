@@ -12,7 +12,7 @@
  *   ADMIN_EMAILS        komma-gescheiden lijst; leeg = iedereen met toegang mag beheren
  */
 import { json } from './_lib/http.js';
-import { activePin, unlocked } from './_lib/pin.js';
+import { activeCodes, sessionCode } from './_lib/pin.js';
 
 const CERTS_TTL_MS = 60 * 60 * 1000;
 let certsCache = { at: 0, team: '', keys: null };
@@ -81,13 +81,18 @@ const adminFlags = (email, env) => {
 /**
  * De toegangscode zit vóór de API. De pagina's zelf laden wel, maar tonen zonder code niets:
  * elke aanvraag naar /api/ geeft 401 met code 'pin', waarna het scherm om de cijfers vraagt.
+ *
+ * Geeft { gate } terug als het verzoek geweigerd wordt, of { code } met de code waarmee deze
+ * browser binnen is — die bepaalt verderop mee welke rechten er gelden.
  */
 async function pinGate(request, env, url) {
-  if (!url.pathname.startsWith('/api/') || url.pathname === '/api/pin') return null;
-  if (!env.DB) return null;
-  const pin = await activePin(env, env.DB);
-  if (!pin || await unlocked(request, pin, env)) return null;
-  return json({ error: 'Geef eerst de toegangscode van de besteltool.', code: 'pin' }, 401);
+  if (!env.DB) return {};
+  const codes = await activeCodes(env, env.DB);
+  if (!codes.length) return {};
+  const code = await sessionCode(request, codes, env);
+  if (code) return { code };
+  if (!url.pathname.startsWith('/api/') || url.pathname === '/api/pin') return {};
+  return { gate: json({ error: 'Geef eerst de toegangscode van de besteltool.', code: 'pin' }, 401) };
 }
 
 export async function onRequest(context) {
@@ -97,9 +102,12 @@ export async function onRequest(context) {
 
   if (!team) {
     // Geen Access geconfigureerd: enkel de toegangscode beschermt de tool.
-    const gate = await pinGate(request, env, url);
+    const { gate, code } = await pinGate(request, env, url);
     if (gate) return gate;
-    data.user = { email: request.headers.get('cf-access-authenticated-user-email') || '', admin: true, admin_listed: false, admin_list_set: false, protected: false };
+    data.user = {
+      email: request.headers.get('cf-access-authenticated-user-email') || '',
+      admin: true, admin_listed: false, admin_list_set: false, protected: false, code: code || null,
+    };
     return next();
   }
 
@@ -121,10 +129,10 @@ export async function onRequest(context) {
       { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
   }
 
-  const gate = await pinGate(request, env, url);
+  const { gate, code } = await pinGate(request, env, url);
   if (gate) return gate;
 
   const email = payload.email || payload.common_name || '';
-  data.user = { email, ...adminFlags(email, env), protected: true };
+  data.user = { email, ...adminFlags(email, env), protected: true, code: code || null };
   return next();
 }

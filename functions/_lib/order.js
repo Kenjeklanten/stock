@@ -50,6 +50,15 @@ export const orderPacks = (orderUnits, packSize = 1) => {
   return round2(Number(orderUnits || 0) / pack);
 };
 
+/**
+ * Ontvangstcontrole: verschil tussen wat er geleverd is en wat er besteld was.
+ * Negatief = te weinig geleverd, positief = te veel. null = nog niet nagekeken.
+ */
+export function receiptDiff(ordered, received) {
+  if (received === null || received === undefined) return null;
+  return round2(Number(received) - Number(ordered || 0));
+}
+
 /** Getal netjes tonen: 12 i.p.v. 12.00, 1,5 i.p.v. 1.5 (Belgisch decimaalteken). */
 export const fmt = (n) => {
   const v = round2(n);

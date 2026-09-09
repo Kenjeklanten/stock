@@ -5,7 +5,7 @@ import { readWorkbook, interpretBestellijst, interpretPerLocation, looksPerLocat
 
 const state = {
   companyId: null, company: null, locations: [], suppliers: [], products: [], companies: [],
-  members: [], settings: {}, tab: 'producten', canManage: true, superAdmin: true,
+  members: [], codes: [], settings: {}, tab: 'producten', canManage: true, superAdmin: true,
 };
 
 const input = (props) => el('input', { type: 'text', ...props });
@@ -364,6 +364,83 @@ async function loadMembers() {
   } catch { state.members = []; }
 }
 
+async function loadCodes() {
+  try {
+    const res = await api('/api/admin/codes');
+    state.codes = res.codes || [];
+  } catch { state.codes = []; }
+}
+
+/**
+ * De cijfercodes waarmee de tool opengaat. Elke code draagt haar eigen rechten: een code voor
+ * één bedrijf laat enkel dat bedrijf zien, en 'tellen' houdt het beheer dicht.
+ */
+function renderCodes(panel) {
+  const tbody = el('tbody', {});
+  for (const c of state.codes) {
+    const del = el('button', { class: 'btn btn--sm btn--danger', text: 'Wis' });
+    del.addEventListener('click', async () => {
+      if (!confirm(`Code ${c.code} (${c.label}) verwijderen? Wie ze gebruikt, staat er meteen buiten.`)) return;
+      try {
+        const res = await api(`/api/admin/codes?code=${encodeURIComponent(c.code)}`, { method: 'DELETE' });
+        state.codes = res.codes || [];
+        toast('Code verwijderd.');
+        renderTab();
+      } catch (err) { toast(err.message, true); }
+    });
+    tbody.append(el('tr', {}, [
+      el('td', {}, [el('b', { text: c.code })]),
+      el('td', { text: c.label }),
+      el('td', { text: c.company_name || 'Alle bedrijven' }),
+      el('td', { text: c.role === 'beheerder' ? 'alles beheren' : 'enkel tellen' }),
+      el('td', {}, [del]),
+    ]));
+  }
+  if (!state.codes.length) tbody.append(el('tr', {}, [el('td', { colspan: '5', class: 'muted', text: 'Geen codes: de tool vraagt niets en staat open.' })]));
+
+  const code = el('input', { type: 'text', inputmode: 'numeric', maxlength: '8', placeholder: '1234' });
+  const label = el('input', { type: 'text', placeholder: 'Tellen Bistro' });
+  const bedrijf = el('select', {}, [el('option', { value: '', text: 'Alle bedrijven' }),
+    ...state.companies.map((c) => el('option', { value: String(c.id), text: c.name }))]);
+  const rol = el('select', {}, [
+    el('option', { value: 'teller', text: 'enkel tellen' }),
+    el('option', { value: 'beheerder', text: 'alles beheren' }),
+  ]);
+  const add = el('button', { class: 'btn', text: 'Code toevoegen' });
+  add.addEventListener('click', async () => {
+    try {
+      const res = await api('/api/admin/codes', {
+        method: 'POST',
+        body: { code: code.value, label: label.value, role: rol.value, company_id: bedrijf.value || null },
+      });
+      state.codes = res.codes || [];
+      code.value = ''; label.value = '';
+      toast('Code bewaard.');
+      renderTab();
+    } catch (err) { toast(err.message, true); }
+  });
+
+  panel.append(el('section', { class: 'card' }, [
+    el('div', { class: 'card__head' }, [el('h2', { text: 'Toegangscodes' })]),
+    el('p', { class: 'small muted', text: 'Wie de tool opent, geeft eerst een van deze codes. De code bepaalt ook wat je mag: een code voor één bedrijf toont enkel dat bedrijf, en "enkel tellen" houdt het beheer dicht. De browser onthoudt de code dertig dagen.' }),
+    el('div', { class: 'table-wrap mt-2' }, [el('table', {}, [
+      el('thead', {}, [el('tr', {}, [
+        el('th', { text: 'Code' }), el('th', { text: 'Waarvoor' }), el('th', { text: 'Bedrijf' }),
+        el('th', { text: 'Mag' }), el('th', { text: '' }),
+      ])]),
+      tbody,
+    ])]),
+    el('div', { class: 'row mt-2 align-end' }, [
+      el('div', { class: 'f-field' }, [el('label', { text: 'Code (4–8 cijfers)' }), code]),
+      el('div', { class: 'f-field-wide' }, [el('label', { text: 'Waarvoor dient ze' }), label]),
+      el('div', { class: 'f-field' }, [el('label', { text: 'Bedrijf' }), bedrijf]),
+      el('div', { class: 'f-field' }, [el('label', { text: 'Mag' }), rol]),
+      el('div', { class: 'f-fixed' }, [add]),
+    ]),
+    el('p', { class: 'small muted mt-1', text: 'Er blijft altijd één code met volledige toegang over. Sluit je jezelf toch buiten, zet dan APP_PIN als variabele op het Pages-project.' }),
+  ]));
+}
+
 function renderAccess(panel) {
   const naam = state.company ? state.company.name : '—';
   const tbody = el('tbody', {});
@@ -429,12 +506,12 @@ function renderAccess(panel) {
     el('div', { class: 'f-fixed' }, [add]),
   ]));
   panel.append(card, el('p', { class: 'small muted', text: 'Hoofdbeheerders staan in de variabele ADMIN_EMAILS van de omgeving; die mogen altijd overal aan, ook bedrijven aanmaken.' }));
+  if (state.superAdmin) renderCodes(panel);
 }
 
 /* ---------------- instellingen ---------------- */
 
 function renderSettings(panel) {
-  const pin = el('input', { type: 'text', inputmode: 'numeric', maxlength: '8', id: 'app-pin', value: state.settings.pin || '' });
   const delimiter = el('select', { id: 'csv-delimiter' }, [
     el('option', { value: ';', text: 'Puntkomma ;  (Excel België/Nederland)' }),
     el('option', { value: ',', text: 'Komma ,' }),
@@ -444,19 +521,16 @@ function renderSettings(panel) {
   const save = el('button', { class: 'btn', text: 'Bewaren' });
   save.addEventListener('click', async () => {
     try {
-      const res = await api('/api/admin/settings', { method: 'POST', body: { csv_delimiter: delimiter.value, pin: pin.value } });
+      const res = await api('/api/admin/settings', { method: 'POST', body: { csv_delimiter: delimiter.value } });
       state.settings = res.settings;
-      toast(res.settings.pin ? 'Instellingen bewaard. De nieuwe code geldt meteen; iedereen moet opnieuw invoeren.' : 'Instellingen bewaard. Er wordt geen code meer gevraagd.');
+      toast('Instellingen bewaard.');
     } catch (err) { toast(err.message, true); }
   });
 
   panel.append(el('section', { class: 'card' }, [
     el('h2', { text: 'Algemene instellingen' }),
     el('p', { class: 'small muted', text: 'De naam, het adres en de voettekst op de bestelbon staan bij het bedrijf zelf (tab Bedrijven).' }),
-    el('div', { class: 'field-narrow mt-2' }, [
-      el('label', { for: 'app-pin', text: 'Toegangscode (4 tot 8 cijfers, leeg = geen code)' }), pin,
-      el('p', { class: 'small muted mt-1', text: 'Wie de tool opent, geeft eerst deze code. De browser onthoudt ze dertig dagen. Verander je de code, dan moet iedereen ze opnieuw invoeren.' }),
-    ]),
+    el('p', { class: 'small muted', text: 'De toegangscodes staan in de tab Toegang.' }),
     el('div', { class: 'field-narrow mt-2' }, [el('label', { for: 'csv-delimiter', text: 'CSV-scheidingsteken' }), delimiter]),
     el('div', { class: 'mt-2' }, [save]),
   ]));
@@ -508,6 +582,7 @@ async function init() {
   if (!state.superAdmin) qsa('[data-super-only]').forEach((n) => n.classList.add('hidden'));
   await refresh();
   if (state.companyId) await loadMembers();
+  if (state.superAdmin) await loadCodes();
   if (!state.companyId) state.tab = state.superAdmin ? 'bedrijven' : 'toegang';
   else if (!state.canManage) state.tab = 'toegang';
   qsa('.tabs button').forEach((btn) => {
