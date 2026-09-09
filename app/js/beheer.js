@@ -2,7 +2,10 @@
 // basisstock per locatie, locaties, leveranciers, import/export en de bedrijfsgegevens zelf.
 import { api, toast, fmt, num, el, clear, qs, qsa, mountHeader, plural } from './app.js';
 
-const state = { companyId: null, company: null, locations: [], suppliers: [], products: [], companies: [], settings: {}, tab: 'producten' };
+const state = {
+  companyId: null, company: null, locations: [], suppliers: [], products: [], companies: [],
+  members: [], settings: {}, tab: 'producten', canManage: true, superAdmin: true,
+};
 
 const input = (props) => el('input', { type: 'text', ...props });
 
@@ -291,6 +294,83 @@ function renderImport(panel) {
   );
 }
 
+/* ---------------- toegang ---------------- */
+
+async function loadMembers() {
+  try {
+    const res = await api(`/api/admin/members?company_id=${state.companyId}`);
+    state.members = res.members || [];
+    state.membersConfigured = res.configured;
+  } catch { state.members = []; }
+}
+
+function renderAccess(panel) {
+  const naam = state.company ? state.company.name : '—';
+  const tbody = el('tbody', {});
+  const card = el('section', { class: 'card' }, [
+    el('div', { class: 'card__head' }, [el('h2', { text: `Wie mag bij ${naam}` })]),
+    el('p', { class: 'small muted' }, [
+      state.membersConfigured
+        ? 'Enkel de adressen hieronder zien dit bedrijf. Een teller mag tellen en bestellingen bekijken; een beheerder mag ook de catalogus aanpassen.'
+        : 'Er is nog niemand toegevoegd, dus iedereen die door Cloudflare Access geraakt, ziet alle bedrijven. Zodra je hier het eerste adres toevoegt, telt deze lijst — voeg dus eerst jezelf toe.',
+    ]),
+    el('div', { class: 'table-wrap mt-2' }, [el('table', {}, [
+      el('thead', {}, [el('tr', {}, [el('th', { text: 'E-mailadres' }), el('th', { text: 'Rol' }), el('th', { text: '' })])]),
+      tbody,
+    ])]),
+  ]);
+
+  for (const member of state.members) {
+    const rol = el('select', { 'aria-label': `Rol van ${member.email}` }, [
+      el('option', { value: 'teller', text: 'teller — mag tellen' }),
+      el('option', { value: 'beheerder', text: 'beheerder — mag ook de catalogus aanpassen' }),
+    ]);
+    rol.value = member.role;
+    rol.addEventListener('change', async () => {
+      try {
+        await api('/api/admin/members', { method: 'POST', body: { company_id: state.companyId, email: member.email, role: rol.value } });
+        toast(`${member.email} is nu ${rol.value}.`);
+        await loadMembers();
+      } catch (err) { toast(err.message, true); rol.value = member.role; }
+    });
+    const del = el('button', { class: 'btn btn--sm btn--danger', text: 'Wis' });
+    del.addEventListener('click', async () => {
+      if (!confirm(`${member.email} de toegang tot ${naam} ontnemen?`)) return;
+      try {
+        const res = await api(`/api/admin/members?company_id=${state.companyId}&email=${encodeURIComponent(member.email)}`, { method: 'DELETE' });
+        toast(res.message || 'Verwijderd.');
+        await loadMembers();
+        renderTab();
+      } catch (err) { toast(err.message, true); }
+    });
+    tbody.append(el('tr', {}, [el('td', { text: member.email }), el('td', {}, [rol]), el('td', {}, [del])]));
+  }
+  if (!state.members.length) tbody.append(el('tr', {}, [el('td', { colspan: '3', class: 'muted', text: 'Nog niemand toegevoegd.' })]));
+
+  const email = el('input', { type: 'email', placeholder: 'naam@bedrijf.be' });
+  const role = el('select', {}, [
+    el('option', { value: 'teller', text: 'teller' }),
+    el('option', { value: 'beheerder', text: 'beheerder' }),
+  ]);
+  const add = el('button', { class: 'btn', text: 'Toegang geven' });
+  add.addEventListener('click', async () => {
+    if (!email.value.trim()) return toast('Vul een e-mailadres in.', true);
+    try {
+      const res = await api('/api/admin/members', { method: 'POST', body: { company_id: state.companyId, email: email.value, role: role.value } });
+      toast(res.message || 'Toegevoegd.');
+      email.value = '';
+      await loadMembers();
+      renderTab();
+    } catch (err) { toast(err.message, true); }
+  });
+  card.append(el('div', { class: 'row mt-2 align-end' }, [
+    el('div', { class: 'f-field-wide' }, [el('label', { text: 'E-mailadres (zoals in Cloudflare Access)' }), email]),
+    el('div', { class: 'f-field' }, [el('label', { text: 'Rol' }), role]),
+    el('div', { class: 'f-fixed' }, [add]),
+  ]));
+  panel.append(card, el('p', { class: 'small muted', text: 'Hoofdbeheerders staan in de variabele ADMIN_EMAILS van de omgeving; die mogen altijd overal aan, ook bedrijven aanmaken.' }));
+}
+
 /* ---------------- instellingen ---------------- */
 
 function renderSettings(panel) {
@@ -325,6 +405,10 @@ function renderTab() {
     panel.append(el('div', { class: 'notice', text: 'Maak eerst een bedrijf aan in de tab Bedrijven.' }));
     return;
   }
+  if (!state.canManage && state.tab !== 'toegang') {
+    panel.append(el('div', { class: 'notice', text: `Je mag ${state.company ? state.company.name : 'dit bedrijf'} bekijken en tellen, maar niet beheren. Vraag een beheerder om aanpassingen.` }));
+    return;
+  }
   if (state.tab === 'producten') renderProducts(panel);
   else if (state.tab === 'locaties') panel.append(crudTable({
     title: `Locaties van ${state.company ? state.company.name : '—'}`, endpoint: '/api/admin/locations', items: state.locations, newLabel: 'Locatie toevoegen',
@@ -335,6 +419,7 @@ function renderTab() {
     columns: [{ k: 'name', label: 'Naam' }, { k: 'email', label: 'E-mail', narrow: true }, { k: 'customer_ref', label: 'Klantnummer', narrow: true }, { k: 'sort', label: 'Volgorde', type: 'number', narrow: true }],
   }));
   else if (state.tab === 'import') renderImport(panel);
+  else if (state.tab === 'toegang') renderAccess(panel);
   else if (state.tab === 'bedrijven') {
     panel.append(
       el('p', { class: 'page-intro small muted', text: 'Elk bedrijf heeft zijn eigen locaties, leveranciers en producten. Deze gegevens komen op de bestelbon.' }),
@@ -353,11 +438,13 @@ function renderTab() {
 async function init() {
   const header = await mountHeader('beheer');
   state.companyId = header.companyId;
-  if (header.user && header.user.admin === false) {
-    qs('#messages').replaceChildren(el('div', { class: 'notice notice--error', text: 'Je hebt geen beheerrechten. Vraag een beheerder om je adres toe te voegen aan ADMIN_EMAILS.' }));
-  }
+  state.canManage = header.canManage;
+  state.superAdmin = header.superAdmin;
+  if (!state.superAdmin) qsa('[data-super-only]').forEach((n) => n.classList.add('hidden'));
   await refresh();
-  if (!state.companyId) state.tab = 'bedrijven';
+  if (state.companyId) await loadMembers();
+  if (!state.companyId) state.tab = state.superAdmin ? 'bedrijven' : 'toegang';
+  else if (!state.canManage) state.tab = 'toegang';
   qsa('.tabs button').forEach((btn) => {
     btn.setAttribute('aria-selected', String(btn.dataset.tab === state.tab));
     btn.addEventListener('click', () => {

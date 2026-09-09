@@ -1,5 +1,5 @@
 import { json, handler, db, body, int, text, HttpError } from '../../_lib/http.js';
-import { requireAdmin } from './_guard.js';
+import { guard, requireCompany, requireRowCompany } from './_guard.js';
 
 /** GET /api/admin/locations?company_id= */
 export const onRequestGet = handler(async ({ request, env }) => {
@@ -11,12 +11,11 @@ export const onRequestGet = handler(async ({ request, env }) => {
 });
 
 export const onRequestPost = handler(async ({ request, env, data }) => {
-  requireAdmin(data);
   const D = db(env);
   const input = (await body(request)) || {};
   const companyId = int(input.company_id, null);
   const name = text(input.name, 80);
-  if (!companyId) throw new HttpError('Kies eerst een bedrijf.');
+  requireCompany(await guard(env, data), companyId, { manage: true });
   if (!name) throw new HttpError('Geef de locatie een naam.');
   try {
     const res = await D.prepare('INSERT INTO locations (company_id, name, sort, active) VALUES (?1, ?2, ?3, ?4)')
@@ -30,10 +29,10 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
 });
 
 export const onRequestPut = handler(async ({ request, env, data }) => {
-  requireAdmin(data);
   const input = (await body(request)) || {};
   const id = int(input.id, null);
   if (!id) throw new HttpError('Ontbrekend nummer.');
+  await requireRowCompany(env, data, 'locations', id);
   const res = await db(env).prepare('UPDATE locations SET name = ?2, sort = ?3, active = ?4 WHERE id = ?1')
     .bind(id, text(input.name, 80), int(input.sort, 0), input.active === false ? 0 : 1).run();
   if (!res.meta.changes) throw new HttpError('Locatie niet gevonden.', 404);
@@ -41,10 +40,10 @@ export const onRequestPut = handler(async ({ request, env, data }) => {
 });
 
 export const onRequestDelete = handler(async ({ request, env, data }) => {
-  requireAdmin(data);
   const D = db(env);
   const id = int(new URL(request.url).searchParams.get('id'), null);
   if (!id) throw new HttpError('Ontbrekend nummer.');
+  await requireRowCompany(env, data, 'locations', id);
   const used = await D.prepare('SELECT COUNT(*) AS n FROM counts WHERE location_id = ?1').bind(id).first();
   if (used && used.n > 0) {
     await D.prepare('UPDATE locations SET active = 0 WHERE id = ?1').bind(id).run();

@@ -35,7 +35,7 @@ export function createDb(schemaPath) {
 }
 
 /** Bouwt de context die een Pages Function krijgt. */
-export const ctx = (env, { method = 'GET', url = 'https://bestel.test/', body = null, params = {}, user = { email: 'test@jeconcept.be', admin: true, protected: true } } = {}) => ({
+export const ctx = (env, { method = 'GET', url = 'https://bestel.test/', body = null, params = {}, user = { email: 'test@jeconcept.be', admin: true, admin_listed: true, protected: true } } = {}) => ({
   request: new Request(url, {
     method,
     headers: body ? { 'content-type': 'application/json' } : undefined,

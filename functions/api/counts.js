@@ -1,17 +1,28 @@
 import { json, handler, db, body, int, text, isDate, today, HttpError } from '../_lib/http.js';
 import { saveLines } from '../_lib/store.js';
+import { scopeFor, requireCompany, visibleCompanies } from '../_lib/access.js';
 
 /** GET /api/counts?company_id=&location_id=&limit= — overzicht van tellingen. */
-export const onRequestGet = handler(async ({ request, env }) => {
+export const onRequestGet = handler(async ({ request, env, data }) => {
   const D = db(env);
   const url = new URL(request.url);
   const companyId = int(url.searchParams.get('company_id'), null);
   const locationId = int(url.searchParams.get('location_id'), null);
   const limit = Math.min(Math.max(int(url.searchParams.get('limit'), 50), 1), 200);
+  const scope = await scopeFor(D, data.user);
 
   const where = [];
   const args = [limit];
-  if (companyId) { args.push(companyId); where.push(`c.company_id = ?${args.length}`); }
+  if (companyId) {
+    requireCompany(scope, companyId);
+    args.push(companyId);
+    where.push(`c.company_id = ?${args.length}`);
+  } else if (!scope.open && !scope.superAdmin) {
+    // zonder gekozen bedrijf: enkel de bedrijven waar deze persoon bij hoort
+    const ids = [...scope.roles.keys()];
+    if (!ids.length) return json({ counts: [] });
+    where.push(`c.company_id IN (${ids.map((id) => Number(id)).join(', ')})`);
+  }
   if (locationId) { args.push(locationId); where.push(`c.location_id = ?${args.length}`); }
 
   const rows = await D.prepare(
@@ -38,6 +49,7 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
   if (!locationId) throw new HttpError('Kies een locatie.');
   const location = await D.prepare('SELECT id, company_id FROM locations WHERE id = ?1').bind(locationId).first();
   if (!location) throw new HttpError('Onbekende locatie.', 404);
+  requireCompany(await scopeFor(D, data.user), location.company_id);
 
   const countedOn = isDate(input.counted_on) ? input.counted_on : today();
   const note = text(input.note, 500);

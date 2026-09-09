@@ -1,5 +1,5 @@
 import { json, handler, db, body, int, num, text, HttpError } from '../../_lib/http.js';
-import { requireAdmin } from './_guard.js';
+import { guard, requireCompany, requireRowCompany } from './_guard.js';
 
 const fields = (input) => ({
   name: text(input.name, 120),
@@ -35,12 +35,11 @@ async function saveBase(D, productId, companyId, base) {
 }
 
 export const onRequestPost = handler(async ({ request, env, data }) => {
-  requireAdmin(data);
   const D = db(env);
   const input = (await body(request)) || {};
   const companyId = int(input.company_id, null);
   const f = fields(input);
-  if (!companyId) throw new HttpError('Kies eerst een bedrijf.');
+  requireCompany(await guard(env, data), companyId, { manage: true });
   if (!f.name) throw new HttpError('Geef het product een naam.');
   let id;
   try {
@@ -59,13 +58,13 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
 });
 
 export const onRequestPut = handler(async ({ request, env, data }) => {
-  requireAdmin(data);
   const D = db(env);
   const input = (await body(request)) || {};
   const id = int(input.id, null);
   if (!id) throw new HttpError('Ontbrekend nummer.');
   const f = fields(input);
   if (!f.name) throw new HttpError('Geef het product een naam.');
+  await requireRowCompany(env, data, 'products', id);
   const product = await D.prepare('SELECT company_id FROM products WHERE id = ?1').bind(id).first();
   if (!product) throw new HttpError('Product niet gevonden.', 404);
   const res = await D.prepare(
@@ -77,10 +76,10 @@ export const onRequestPut = handler(async ({ request, env, data }) => {
 });
 
 export const onRequestDelete = handler(async ({ request, env, data }) => {
-  requireAdmin(data);
   const D = db(env);
   const id = int(new URL(request.url).searchParams.get('id'), null);
   if (!id) throw new HttpError('Ontbrekend nummer.');
+  await requireRowCompany(env, data, 'products', id);
   const used = await D.prepare('SELECT COUNT(*) AS n FROM count_lines WHERE product_id = ?1').bind(id).first();
   if (used && used.n > 0) {
     await D.prepare('UPDATE products SET active = 0 WHERE id = ?1').bind(id).run();

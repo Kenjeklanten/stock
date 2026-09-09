@@ -1,5 +1,6 @@
 import { json, handler, db, body, int, text, HttpError } from '../../_lib/http.js';
-import { requireAdmin } from './_guard.js';
+import { guard, requireSuperAdmin } from './_guard.js';
+import { visibleCompanies, requireCompany } from '../../_lib/access.js';
 
 /** Bedrijven: elk met eigen locaties, leveranciers en producten. De gegevens hier komen op de bestelbon. */
 const fields = (input) => ({
@@ -12,13 +13,13 @@ const fields = (input) => ({
   active: input.active === false ? 0 : 1,
 });
 
-export const onRequestGet = handler(async ({ env }) => {
+export const onRequestGet = handler(async ({ env, data }) => {
   const rows = await db(env).prepare('SELECT * FROM companies ORDER BY sort, name').all();
-  return json({ companies: rows.results || [] });
+  return json({ companies: visibleCompanies(await guard(env, data), rows.results || []) });
 });
 
 export const onRequestPost = handler(async ({ request, env, data }) => {
-  requireAdmin(data);
+  requireSuperAdmin(await guard(env, data));
   const f = fields((await body(request)) || {});
   if (!f.name) throw new HttpError('Geef het bedrijf een naam.');
   try {
@@ -33,10 +34,10 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
 });
 
 export const onRequestPut = handler(async ({ request, env, data }) => {
-  requireAdmin(data);
   const input = (await body(request)) || {};
   const id = int(input.id, null);
   if (!id) throw new HttpError('Ontbrekend nummer.');
+  requireCompany(await guard(env, data), id, { manage: true });
   const f = fields(input);
   if (!f.name) throw new HttpError('Geef het bedrijf een naam.');
   const res = await db(env).prepare(
@@ -47,10 +48,12 @@ export const onRequestPut = handler(async ({ request, env, data }) => {
 });
 
 export const onRequestDelete = handler(async ({ request, env, data }) => {
-  requireAdmin(data);
   const D = db(env);
   const id = int(new URL(request.url).searchParams.get('id'), null);
   if (!id) throw new HttpError('Ontbrekend nummer.');
+  const scope = await guard(env, data);
+  requireSuperAdmin(scope);
+  requireCompany(scope, id, { manage: true });
   const used = await D.prepare('SELECT COUNT(*) AS n FROM counts WHERE company_id = ?1').bind(id).first();
   if (used && used.n > 0) {
     await D.prepare('UPDATE companies SET active = 0 WHERE id = ?1').bind(id).run();

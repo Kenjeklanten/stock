@@ -1,5 +1,6 @@
 import { handler, db, int, HttpError } from '../../../_lib/http.js';
 import { loadCount, groupBySupplier } from '../../../_lib/store.js';
+import { scopeFor, requireCompany, companyOfCount } from '../../../_lib/access.js';
 import { toCsv, slug } from '../../../_lib/csv.js';
 import { fmt, orderPacks } from '../../../_lib/order.js';
 
@@ -8,10 +9,11 @@ import { fmt, orderPacks } from '../../../_lib/order.js';
  *   standaard: enkel de bestelregels (te bestellen > 0)
  *   scope=all: het volledige telblad (alle producten, ook wat niet besteld moet worden)
  */
-export const onRequestGet = handler(async ({ params, request, env }) => {
+export const onRequestGet = handler(async ({ params, request, env, data }) => {
   const D = db(env);
   const id = int(params.id, null);
   if (!id) throw new HttpError('Ongeldig nummer.');
+  requireCompany(await scopeFor(D, data.user), await companyOfCount(D, id));
   const url = new URL(request.url);
   const supplier = url.searchParams.get('supplier');
   const all = url.searchParams.get('scope') === 'all';

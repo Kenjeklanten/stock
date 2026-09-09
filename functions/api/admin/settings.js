@@ -1,5 +1,5 @@
 import { json, handler, db, body, text, HttpError } from '../../_lib/http.js';
-import { requireAdmin } from './_guard.js';
+import { guard, requireSuperAdmin } from './_guard.js';
 
 // De bedrijfsgegevens op de bestelbon staan bij het bedrijf zelf; hier blijft enkel wat globaal is.
 const KEYS = ['csv_delimiter'];
@@ -10,7 +10,7 @@ export const onRequestGet = handler(async ({ env }) => {
 });
 
 export const onRequestPost = handler(async ({ request, env, data }) => {
-  requireAdmin(data);
+  requireSuperAdmin(await guard(env, data));
   const D = db(env);
   const input = (await body(request)) || {};
   const statements = [];

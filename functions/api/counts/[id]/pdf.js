@@ -1,13 +1,15 @@
 import { handler, db, int, HttpError } from '../../../_lib/http.js';
 import { loadCount, groupBySupplier } from '../../../_lib/store.js';
+import { scopeFor, requireCompany, companyOfCount } from '../../../_lib/access.js';
 import { buildOrderPdf } from '../../../_lib/order-pdf.js';
 import { slug } from '../../../_lib/csv.js';
 
 /** GET /api/counts/:id/pdf[?supplier=<id>] — bestelbon als PDF (één sectie per leverancier). */
-export const onRequestGet = handler(async ({ params, request, env }) => {
+export const onRequestGet = handler(async ({ params, request, env, data }) => {
   const D = db(env);
   const id = int(params.id, null);
   if (!id) throw new HttpError('Ongeldig nummer.');
+  requireCompany(await scopeFor(D, data.user), await companyOfCount(D, id));
   const supplier = new URL(request.url).searchParams.get('supplier');
 
   const { count, lines } = await loadCount(D, id);

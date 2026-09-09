@@ -7,6 +7,7 @@
  */
 import { handler, db, int, isDate, HttpError } from '../../_lib/http.js';
 import { buildBestellijst, bestellijstNaam } from '../../_lib/bestellijst.js';
+import { scopeFor, requireCompany, companyOfCount } from '../../_lib/access.js';
 
 const SELECT = `
   SELECT cl.product_id, cl.product_name, cl.order_qty,
@@ -19,8 +20,9 @@ const SELECT = `
     LEFT JOIN products  p ON p.id = cl.product_id
     LEFT JOIN suppliers s ON s.id = p.supplier_id`;
 
-export const onRequestGet = handler(async ({ request, env }) => {
+export const onRequestGet = handler(async ({ request, env, data }) => {
   const D = db(env);
+  const scope = await scopeFor(D, data.user);
   const url = new URL(request.url);
   const countId = int(url.searchParams.get('count_id'), null);
   const companyId = int(url.searchParams.get('company_id'), null);
@@ -33,10 +35,11 @@ export const onRequestGet = handler(async ({ request, env }) => {
       `SELECT c.counted_on, co.name AS company_name FROM counts c JOIN companies co ON co.id = c.company_id WHERE c.id = ?1`
     ).bind(countId).first();
     if (!count) throw new HttpError('Telling niet gevonden.', 404);
+    requireCompany(scope, await companyOfCount(D, countId));
     company = { name: count.company_name, date: count.counted_on };
     rows = await D.prepare(`${SELECT} WHERE c.id = ?1`).bind(countId).all();
   } else {
-    if (!companyId) throw new HttpError('Kies een bedrijf.');
+    requireCompany(scope, companyId);
     if (!isDate(date)) throw new HttpError('Geef een datum in de vorm JJJJ-MM-DD.');
     const found = await D.prepare('SELECT name FROM companies WHERE id = ?1').bind(companyId).first();
     if (!found) throw new HttpError('Onbekend bedrijf.', 404);

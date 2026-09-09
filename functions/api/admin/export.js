@@ -1,12 +1,13 @@
 /** GET /api/admin/export?company_id= — de catalogus van dat bedrijf als CSV (zelfde kolommen als de import). */
 import { handler, db, int, HttpError } from '../../_lib/http.js';
 import { toCsv, slug } from '../../_lib/csv.js';
+import { guard, requireCompany } from './_guard.js';
 import { fmt } from '../../_lib/order.js';
 
-export const onRequestGet = handler(async ({ request, env }) => {
+export const onRequestGet = handler(async ({ request, env, data }) => {
   const D = db(env);
   const companyId = int(new URL(request.url).searchParams.get('company_id'), null);
-  if (!companyId) throw new HttpError('Kies eerst een bedrijf.');
+  requireCompany(await guard(env, data), companyId);
   const company = await D.prepare('SELECT id, name FROM companies WHERE id = ?1').bind(companyId).first();
   if (!company) throw new HttpError('Onbekend bedrijf.', 404);
 

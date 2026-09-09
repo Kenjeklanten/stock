@@ -16,7 +16,7 @@
  */
 import { json, handler, db, body, int, num, text, HttpError } from '../../_lib/http.js';
 import { parseCsv } from '../../_lib/csv.js';
-import { requireAdmin } from './_guard.js';
+import { guard, requireCompany } from './_guard.js';
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD')
   .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
@@ -122,11 +122,10 @@ function fromSheets(sheets, values) {
 }
 
 export const onRequestPost = handler(async ({ request, env, data }) => {
-  requireAdmin(data);
   const D = db(env);
   const input = (await body(request)) || {};
   const companyId = int(input.company_id, null);
-  if (!companyId) throw new HttpError('Kies eerst een bedrijf.');
+  requireCompany(await guard(env, data), companyId, { manage: true });
   const company = await D.prepare('SELECT id, name FROM companies WHERE id = ?1').bind(companyId).first();
   if (!company) throw new HttpError('Onbekend bedrijf.', 404);
 

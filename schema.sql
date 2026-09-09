@@ -91,6 +91,18 @@ CREATE TABLE IF NOT EXISTS count_lines (
   PRIMARY KEY (count_id, product_id)
 );
 
+-- Wie mag wat. Zolang deze tabel leeg is, mag iedereen met toegang alles (zo sluit je jezelf
+-- niet buiten). Zodra er één rij in staat, telt ze: je ziet enkel de bedrijven waarvoor je een
+-- rij hebt. Rol 'beheerder' mag de catalogus van dat bedrijf aanpassen, 'teller' mag enkel tellen.
+-- De adressen uit ADMIN_EMAILS blijven altijd overal aan mogen.
+CREATE TABLE IF NOT EXISTS members (
+  email      TEXT    NOT NULL,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  role       TEXT    NOT NULL DEFAULT 'teller',   -- teller | beheerder
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (email, company_id)
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL

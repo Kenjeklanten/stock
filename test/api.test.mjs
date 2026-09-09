@@ -242,7 +242,11 @@ test('producten en locaties met historiek worden gearchiveerd, niet verwijderd',
 
 test('beheer is afgeschermd en instellingen worden bewaard', async () => {
   const env = newEnv();
-  const denied = await locationsApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: 1, name: 'X' }, user: { email: 'medewerker@jeconcept.be', admin: false, protected: true } }));
+  // ADMIN_EMAILS is ingevuld en dit adres staat er niet bij: geen beheerrechten
+  const denied = await locationsApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { company_id: 1, name: 'X' },
+    user: { email: 'medewerker@jeconcept.be', admin: false, admin_listed: false, admin_list_set: true, protected: true },
+  }));
   assert.equal(denied.status, 403);
 
   const saved = await asJson(await settingsApi.onRequestPost(ctx(env, { method: 'POST', body: { csv_delimiter: ',' } })));

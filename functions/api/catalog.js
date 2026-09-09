@@ -1,4 +1,5 @@
 import { json, handler, db, int } from '../_lib/http.js';
+import { scopeFor, visibleCompanies, requireCompany, mayManage } from '../_lib/access.js';
 
 /**
  * GET /api/catalog                              → bedrijven (+ wie je bent)
@@ -13,19 +14,30 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
   const locationId = int(url.searchParams.get('location_id'), null);
   const all = url.searchParams.get('all') === '1';
 
-  const [companies, settings] = await Promise.all([
+  const [companies, settings, scope] = await Promise.all([
     D.prepare('SELECT id, name, address, vat, email, order_footer, sort, active FROM companies ORDER BY sort, name').all(),
     D.prepare('SELECT key, value FROM settings').all(),
+    scopeFor(D, data.user),
   ]);
 
+  const allowed = visibleCompanies(scope, companies.results || []);
   const out = {
-    user: data.user,
-    companies: companies.results || [],
+    user: {
+      ...data.user,
+      super_admin: scope.canAdminister,
+      can_manage: companyId ? mayManage(scope, companyId) : false,
+      // welke bedrijven deze persoon mag beheren: 'all' of een lijst met nummers
+      manageable: scope.superAdmin
+        ? 'all'
+        : [...scope.roles.entries()].filter(([, role]) => role === 'beheerder').map(([id]) => id),
+    },
+    companies: allowed,
     settings: Object.fromEntries((settings.results || []).map((r) => [r.key, r.value])),
   };
   if (!companyId) return json(out);
+  requireCompany(scope, companyId);
 
-  out.company = (companies.results || []).find((c) => c.id === companyId) || null;
+  out.company = allowed.find((c) => c.id === companyId) || null;
   const [locations, suppliers] = await Promise.all([
     D.prepare('SELECT id, name, sort, active FROM locations WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),
     D.prepare('SELECT id, name, email, customer_ref, sort, active FROM suppliers WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),

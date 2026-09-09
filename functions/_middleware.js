@@ -66,9 +66,15 @@ function cookie(request, name) {
   return null;
 }
 
-const isAdmin = (email, env) => {
+/**
+ * ADMIN_EMAILS bepaalt de hoofdbeheerders: die mogen overal aan, ook bedrijven beheren.
+ * Staat de lijst leeg, dan mag iedereen met toegang alles — tenzij de tabel `members`
+ * ingevuld is; dat wordt per aanvraag bekeken in _lib/access.js.
+ */
+const adminFlags = (email, env) => {
   const list = String(env.ADMIN_EMAILS || '').toLowerCase().split(/[,\s]+/).filter(Boolean);
-  return list.length === 0 || list.includes(String(email || '').toLowerCase());
+  const listed = list.includes(String(email || '').toLowerCase());
+  return { admin: list.length === 0 || listed, admin_listed: listed, admin_list_set: list.length > 0 };
 };
 
 export async function onRequest(context) {
@@ -78,7 +84,7 @@ export async function onRequest(context) {
 
   if (!team) {
     // Geen Access geconfigureerd: open (lokale ontwikkeling). De app toont hierbij een waarschuwing.
-    data.user = { email: request.headers.get('cf-access-authenticated-user-email') || '', admin: true, protected: false };
+    data.user = { email: request.headers.get('cf-access-authenticated-user-email') || '', admin: true, admin_listed: false, admin_list_set: false, protected: false };
     return next();
   }
 
@@ -101,6 +107,6 @@ export async function onRequest(context) {
   }
 
   const email = payload.email || payload.common_name || '';
-  data.user = { email, admin: isAdmin(email, env), protected: true };
+  data.user = { email, ...adminFlags(email, env), protected: true };
   return next();
 }

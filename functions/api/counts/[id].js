@@ -1,5 +1,6 @@
 import { json, handler, db, body, int, text, isDate, HttpError } from '../../_lib/http.js';
 import { loadCount, saveLines, groupBySupplier } from '../../_lib/store.js';
+import { scopeFor, requireCompany, companyOfCount } from '../../_lib/access.js';
 
 const idOf = (params) => {
   const id = int(params.id, null);
@@ -8,16 +9,19 @@ const idOf = (params) => {
 };
 
 /** GET /api/counts/:id — telling met alle regels en de bestelling per leverancier. */
-export const onRequestGet = handler(async ({ params, env }) => {
+export const onRequestGet = handler(async ({ params, env, data }) => {
   const D = db(env);
-  const detail = await loadCount(D, idOf(params));
+  const id = idOf(params);
+  requireCompany(await scopeFor(D, data.user), await companyOfCount(D, id));
+  const detail = await loadCount(D, id);
   return json({ ...detail, orders: groupBySupplier(detail.lines) });
 });
 
 /** PUT /api/counts/:id — telling bijwerken (datum, opmerking, getelde aantallen). */
-export const onRequestPut = handler(async ({ params, request, env }) => {
+export const onRequestPut = handler(async ({ params, request, env, data }) => {
   const D = db(env);
   const id = idOf(params);
+  requireCompany(await scopeFor(D, data.user), await companyOfCount(D, id));
   const input = await body(request);
   if (!input) throw new HttpError('Ongeldige aanvraag.');
 
@@ -36,9 +40,10 @@ export const onRequestPut = handler(async ({ params, request, env }) => {
 });
 
 /** PATCH /api/counts/:id — status wijzigen (open ⇄ besteld). */
-export const onRequestPatch = handler(async ({ params, request, env }) => {
+export const onRequestPatch = handler(async ({ params, request, env, data }) => {
   const D = db(env);
   const id = idOf(params);
+  requireCompany(await scopeFor(D, data.user), await companyOfCount(D, id));
   const input = (await body(request)) || {};
   const status = input.status === 'besteld' ? 'besteld' : 'open';
   const res = await D.prepare(
@@ -52,8 +57,8 @@ export const onRequestPatch = handler(async ({ params, request, env }) => {
 /** DELETE /api/counts/:id */
 export const onRequestDelete = handler(async ({ params, env, data }) => {
   const D = db(env);
-  if (data.user && !data.user.admin) throw new HttpError('Alleen een beheerder kan een telling verwijderen.', 403);
   const id = idOf(params);
+  requireCompany(await scopeFor(D, data.user), await companyOfCount(D, id), { manage: true });
   await D.prepare('DELETE FROM count_lines WHERE count_id = ?1').bind(id).run();
   const res = await D.prepare('DELETE FROM counts WHERE id = ?1').bind(id).run();
   if (!res.meta.changes) throw new HttpError('Telling niet gevonden.', 404);

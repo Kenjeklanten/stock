@@ -127,13 +127,17 @@ export async function mountHeader(active) {
     if (data.user.protected && data.user.email) who.textContent = `Aangemeld als ${data.user.email}${data.user.admin ? '' : ' · geen beheerrechten'}`;
     else if (!data.user.protected) who.textContent = 'Let op: deze omgeving staat niet achter Cloudflare Access.';
   }
-  if (data.user && !data.user.admin) qsa('[data-admin-only]').forEach((n) => n.classList.add('hidden'));
-
   const select = qs('#company');
   const active_companies = result.companies.filter((c) => c.active);
   const chosen = active_companies.find((c) => c.id === company.get()) || active_companies[0] || null;
   result.companyId = chosen ? chosen.id : null;
   if (chosen) company.set(chosen.id);
+
+  // Mag deze persoon het gekozen bedrijf beheren? Zo niet: de beheerlinks verdwijnen.
+  const manageable = (data.user && data.user.manageable) || 'all';
+  result.canManage = manageable === 'all' || (result.companyId !== null && manageable.includes(result.companyId));
+  result.superAdmin = !data.user || data.user.super_admin !== false;
+  if (!result.canManage) qsa('[data-admin-only]').forEach((n) => n.classList.add('hidden'));
 
   if (select) {
     clear(select);
