@@ -15,3 +15,13 @@
 
 /api/*
   Cache-Control: no-store
+
+/manifest.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=3600
+
+/icon-*.png
+  Cache-Control: public, max-age=86400
+
+/sw.js
+  Cache-Control: no-store

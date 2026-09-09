@@ -1,6 +1,7 @@
 // Telformulier: per product tel je de volle pakken en de losse stuks. Het verschil met de
 // basisstock uit de database wordt de bestelling.
-import { api, toast, fmt, num, today, el, clear, qs, draft, params, mountHeader, dateNl } from './app.js';
+import { api, toast, fmt, num, today, el, clear, qs, draft, params, mountHeader, dateNl,
+  OfflineError, wachtrij, toonVerbinding } from './app.js';
 
 const state = {
   companyId: null, locationId: null, countId: null, countedOn: null,
@@ -65,21 +66,46 @@ function refreshRow(row, p) {
   result.classList.toggle('item__result--ok', ok);
 }
 
+/**
+ * Eén telveld met een min- en een plusknop ernaast. Aan de toog wordt met natte handen op een
+ * telefoon geteld: tikken op een knop gaat vlotter (en misgaat minder) dan een cijfer typen.
+ */
 function countField(label, p, key, row) {
   const input = el('input', {
     type: 'number', min: '0', step: 'any', inputmode: 'decimal',
     value: valueOf(p.id)[key], placeholder: '—',
     'aria-label': `${label} ${p.name}`,
   });
-  input.addEventListener('input', () => {
+
+  const bewaar = () => {
     const current = { ...valueOf(p.id), [key]: input.value };
     if (current.packs === '' && current.loose === '') state.values.delete(p.id);
     else state.values.set(p.id, current);
     saveDraft();
     refreshRow(row, p);
     updateStats();
-  });
-  return el('div', { class: 'count-field' }, [el('label', {}, [el('span', { text: label }), input])]);
+  };
+  input.addEventListener('input', bewaar);
+
+  const stap = (richting) => {
+    const nu = num(input.value, null);
+    const volgende = Math.max(0, (nu === null ? 0 : nu) + richting);
+    // van leeg naar 0 gaan met de minknop heeft geen zin, maar wél iets zeggen: 0 is geteld
+    input.value = String(Math.round(volgende * 100) / 100);
+    bewaar();
+  };
+  const knop = (teken, richting, naam) => {
+    const b = el('button', { type: 'button', class: 'step', text: teken, 'aria-label': `${naam} ${label} ${p.name}` });
+    b.addEventListener('click', () => stap(richting));
+    return b;
+  };
+
+  return el('div', { class: 'count-field' }, [
+    el('label', {}, [
+      el('span', { text: label }),
+      el('div', { class: 'count-field__row' }, [knop('−', -1, 'Eén minder'), input, knop('+', 1, 'Eén meer')]),
+    ]),
+  ]);
 }
 
 function itemRow(p) {
@@ -225,7 +251,21 @@ async function save() {
     draft.clear(state.locationId, payload.counted_on);
     location.href = `/bestelling?id=${state.countId || result.id}`;
   } catch (err) {
-    toast(err.message, true);
+    // Geen bereik? De telling gaat niet verloren: ze blijft op dit toestel staan en vertrekt
+    // vanzelf zodra er weer verbinding is.
+    if (err instanceof OfflineError) {
+      const wachtend = wachtrij.add({ count_id: state.countId, payload });
+      draft.clear(state.locationId, payload.counted_on);
+      toonVerbinding();
+      qs('#messages').replaceChildren(el('div', { class: 'notice notice--warn' }, [
+        el('b', { text: 'Geen verbinding — de telling staat op dit toestel bewaard. ' }),
+        `Ze wordt vanzelf verstuurd zodra je weer bereik hebt (${wachtend} in de wachtrij). `,
+        'Sluit de app niet af voor ze weg is.',
+      ]));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      toast(err.message, true);
+    }
     button.disabled = false;
   }
 }

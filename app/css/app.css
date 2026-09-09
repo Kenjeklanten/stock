@@ -52,6 +52,12 @@ a:hover { color: var(--text-link-hover); }
   padding: 8px 16px; min-height: 40px; cursor: pointer; max-width: 15rem;
 }
 .who { width: 100%; font-size: var(--text-caption); color: var(--text-on-dark); opacity: .75; margin: 0; }
+.net {
+  align-self: center; border-radius: var(--radius-tag); padding: 3px 10px;
+  font-size: var(--text-caption); font-weight: var(--weight-bold);
+  background: var(--status-warning-soft); color: var(--status-warning);
+}
+.net--off { background: var(--status-danger-soft); color: var(--status-danger); }
 .linkish {
   background: none; border: 0; padding: 0; font: inherit; color: inherit;
   text-decoration: underline; cursor: pointer;
@@ -123,14 +129,14 @@ input[type="checkbox"] { width: auto; min-height: auto; accent-color: var(--acti
 .tag--coral { background: var(--status-danger-soft); color: var(--status-danger); }
 
 /* ---------- kengetallen (overzicht) ---------- */
-.stats { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
-.stat {
+.kpis { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
+.kpi {
   border: var(--border-hairline) solid var(--border-soft); border-radius: var(--radius-md);
   padding: var(--space-3); display: flex; flex-direction: column; gap: 2px;
 }
-.stat--sun { border-color: var(--status-warning); background: var(--status-warning-soft); }
-.stat__value { font-family: var(--font-display); font-size: var(--text-h2); line-height: 1.1; font-variant-numeric: tabular-nums; }
-.stat__label { font-size: var(--text-caption); color: var(--text-muted); }
+.kpi--sun { border-color: var(--status-warning); background: var(--status-warning-soft); }
+.kpi__value { font-family: var(--font-display); font-size: var(--text-h2); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi__label { font-size: var(--text-caption); color: var(--text-muted); }
 .columns { columns: 2 16rem; }
 .columns li { break-inside: avoid; }
 
@@ -163,13 +169,30 @@ input[type="checkbox"] { width: auto; min-height: auto; accent-color: var(--acti
 .item--order { border-color: var(--status-danger); box-shadow: inset 4px 0 0 var(--status-danger), var(--shadow-sm); }
 .item__name { font-family: var(--font-display); font-weight: var(--weight-bold); font-size: var(--text-body-md); color: var(--text-strong); }
 .item__meta { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; font-size: var(--text-caption); color: var(--text-muted); margin-top: 2px; }
-.count-fields { display: flex; gap: var(--space-2); }
-.count-field { flex: 1 1 0; min-width: 5.5rem; }
+.count-fields { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.count-field { flex: 1 1 11rem; min-width: 10.5rem; }
 .count-field span {
   display: block; font-family: var(--font-body); font-weight: var(--weight-bold);
   font-size: var(--text-caption); letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px;
 }
-.count-field input { text-align: right; font-family: var(--font-display); font-weight: var(--weight-bold); font-size: var(--text-body-lg); padding: 8px 14px; }
+.count-field__row { display: flex; align-items: stretch; gap: var(--space-1); }
+.count-field input {
+  flex: 1 1 0; min-width: 3rem; text-align: center; font-family: var(--font-display);
+  font-weight: var(--weight-bold); font-size: var(--text-body-lg); padding: 8px 6px;
+}
+/* De pijltjes van een number-veld zijn te klein om aan te tikken; de knoppen vervangen ze. */
+.count-field input::-webkit-outer-spin-button,
+.count-field input::-webkit-inner-spin-button { appearance: none; margin: 0; }
+.count-field input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+.step {
+  flex: 0 0 auto; width: 2.9rem; min-height: 2.9rem; border-radius: var(--radius-sm);
+  border: var(--border-regular) solid var(--border-soft); background: var(--surface-sunken);
+  color: var(--text-strong); font-family: var(--font-display); font-size: var(--text-body-lg);
+  font-weight: var(--weight-bold); line-height: 1; cursor: pointer; touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.step:hover { background: var(--je-navy-100); }
+.step:active { background: var(--je-navy-300); }
 .item__result { font-size: var(--text-body-sm); font-weight: var(--weight-bold); color: var(--status-danger); font-family: var(--font-body); }
 .item__result--ok { color: var(--status-success); }
 .item__result b { font-family: var(--font-display); }
@@ -180,8 +203,8 @@ input[type="checkbox"] { width: auto; min-height: auto; accent-color: var(--acti
   padding: var(--space-3) var(--gutter) calc(var(--space-3) + env(safe-area-inset-bottom));
   box-shadow: 0 -10px 24px -14px rgba(36, 27, 69, .4);
 }
-.sticky-bar__inner { max-width: var(--container-max); margin: 0 auto; display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-.sticky-bar .stat { font-size: var(--text-body-sm); color: var(--text-muted); }
+.sticky-bar__inner { max-width: var(--container-max); margin: 0 auto; display: flex; align-items: center; gap: var(--space-2) var(--space-3); flex-wrap: wrap; }
+.sticky-bar .stat { font-size: var(--text-body-sm); color: var(--text-muted); white-space: nowrap; }
 .sticky-bar .stat b { font-family: var(--font-display); font-size: var(--text-body-lg); color: var(--text-strong); }
 
 /* ---------- tabellen ---------- */
@@ -265,6 +288,35 @@ details ul { margin: var(--space-2) 0 0; padding-left: 1.2rem; }
 .align-end { align-items: flex-end; }
 .self-end { align-self: end; }
 .check { width: auto; min-height: auto; }
+
+/* Op een telefoon telt elke centimeter: de kop compact, de navigatie op één schuifbare rij. */
+@media (max-width: 639px) {
+  .topbar__inner { padding: var(--space-2) var(--gutter); gap: var(--space-2); }
+  .brand { font-size: var(--text-body-lg); }
+  .brand span { display: none; }
+  .topbar nav {
+    order: 3; width: 100%; margin-left: 0; flex-wrap: nowrap;
+    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .topbar nav::-webkit-scrollbar { display: none; }
+  .topbar nav a { white-space: nowrap; padding: 8px 12px; }
+  .company-picker { margin-left: auto; }
+  .company-picker select { max-width: 9.5rem; min-height: 36px; padding: 6px 12px; }
+  .who { order: 4; }
+  main { padding-top: var(--space-4); }
+  .sticky-bar { padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom)); }
+  .sticky-bar .stat { font-size: var(--text-caption); }
+  /* de vulling duwt de knoppen op een breed scherm naar rechts; hier moeten ze naast elkaar */
+  .sticky-bar .spacer { display: none; }
+  .sticky-bar .btn { flex: 1 1 auto; padding-left: var(--space-3); padding-right: var(--space-3); }
+  .sticky-bar .btn--ghost { flex: 0 0 auto; }
+
+  /* meer producten in beeld: minder lucht rond elke regel */
+  .item { padding: var(--space-2) var(--space-3); gap: var(--space-1) var(--space-3); margin-bottom: var(--space-1); }
+  .item__meta { margin-top: 0; }
+  .count-field span { margin-bottom: 0; }
+  .count-group { margin-bottom: var(--space-4); }
+}
 
 @media (min-width: 640px) {
   .item { grid-template-columns: 1fr 15rem; }

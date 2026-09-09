@@ -5,6 +5,7 @@ zodat een nieuwe versie nooit achter een oude browsercache blijft steken.
     python3 build.py dist
 """
 import hashlib
+import json
 import re
 import shutil
 import sys
@@ -43,6 +44,17 @@ def main(target="dist"):
         code = script.read_text(encoding="utf-8")
         code = re.sub(r"from '(\./[^']+\.js)'", rf"from '\1?v={version}'", code)
         script.write_text(code, encoding="utf-8")
+
+    # De service worker krijgt de versie en de lijst met bestanden die vooraf bewaard mogen
+    # worden; zo werkt de tool offline en hangt niemand op een oude versie.
+    worker = out / "sw.js"
+    if worker.exists():
+        shell = ["/", "/dashboard", "/historiek", "/beheer", "/bestelling", "/ontvangst",
+                 "/favicon.svg", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"]
+        shell += sorted(f"/{a.relative_to(out).as_posix()}?v={version}" for a in assets)
+        code = worker.read_text(encoding="utf-8")
+        code = code.replace("__VERSION__", version).replace("__ASSETS__", json.dumps(shell, indent=2))
+        worker.write_text(code, encoding="utf-8")
 
     for extra in ("_headers", "_redirects", "robots.txt"):
         source = ROOT / extra

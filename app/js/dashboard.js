@@ -10,9 +10,9 @@ const card = (title, ...children) => el('section', { class: 'card' }, [
 ]);
 
 /** Kort kengetal: één cijfer met zijn onderschrift. */
-const stat = (value, label, tone = '') => el('div', { class: `stat${tone ? ` stat--${tone}` : ''}` }, [
-  el('b', { class: 'stat__value', text: String(value) }),
-  el('span', { class: 'stat__label', text: label }),
+const stat = (value, label, tone = '') => el('div', { class: `kpi${tone ? ` kpi--${tone}` : ''}` }, [
+  el('b', { class: 'kpi__value', text: String(value) }),
+  el('span', { class: 'kpi__label', text: label }),
 ]);
 
 function tellingen(data) {
@@ -94,7 +94,7 @@ function kop(data) {
   return el('section', { class: 'card' }, [
     el('div', { class: 'card__head' }, [el('h1', { text: `Overzicht ${data.company.name}` })]),
     el('p', { class: 'muted small', text: dateNl(data.today) }),
-    el('div', { class: 'stats mt-2' }, [
+    el('div', { class: 'kpis mt-2' }, [
       stat(`${data.counted_today.length}/${data.locations.length}`, 'locaties vandaag geteld'),
       stat(regels, 'producten te bestellen', regels ? 'sun' : ''),
       stat(open, 'tellingen nog open'),

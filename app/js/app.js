@@ -1,11 +1,21 @@
 // Gedeelde helpers voor alle schermen van de besteltool.
 
+/** Er is geen netwerk (of de server is onbereikbaar); de oproep is niet doorgegaan. */
+export class OfflineError extends Error {
+  constructor(message = 'Geen verbinding.') { super(message); this.offline = true; }
+}
+
 export async function api(path, options = {}, retry = true) {
-  const res = await fetch(path, {
-    headers: options.body ? { 'content-type': 'application/json' } : undefined,
-    ...options,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(path, {
+      headers: options.body ? { 'content-type': 'application/json' } : undefined,
+      ...options,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new OfflineError('Geen verbinding met de besteltool.');
+  }
   const type = res.headers.get('content-type') || '';
   const data = type.includes('json') ? await res.json().catch(() => ({})) : {};
   // Zonder toegangscode antwoordt de server 401; dan vragen we ze en proberen we opnieuw.
@@ -146,6 +156,94 @@ export const draft = {
   },
 };
 
+/**
+ * Tellingen die niet verstuurd raakten omdat het netwerk weg was. Ze blijven op het toestel
+ * staan en gaan alsnog de deur uit zodra er weer verbinding is — bij het openen van een
+ * scherm en bij het 'online'-signaal van de browser.
+ */
+export const wachtrij = {
+  key: 'bestel:wachtrij',
+  all() {
+    try { return JSON.parse(localStorage.getItem(this.key) || '[]'); } catch { return []; }
+  },
+  put(list) {
+    try { localStorage.setItem(this.key, JSON.stringify(list)); } catch { /* privémodus */ }
+  },
+  add(item) {
+    const list = this.all();
+    list.push({ ...item, at: Date.now() });
+    this.put(list);
+    return list.length;
+  },
+};
+
+let bezig = false;
+/** Probeert de wachtrij leeg te maken. Geeft terug hoeveel tellingen er alsnog vertrokken. */
+export async function verstuurWachtrij() {
+  if (bezig || navigator.onLine === false) return 0;
+  const list = wachtrij.all();
+  if (!list.length) return 0;
+
+  bezig = true;
+  let rest = list;
+  let verstuurd = 0;
+  try {
+    for (let i = 0; i < list.length; i++) {
+      const item = list[i];
+      try {
+        await api(item.count_id ? `/api/counts/${item.count_id}` : '/api/counts',
+          { method: item.count_id ? 'PUT' : 'POST', body: item.payload });
+        verstuurd += 1;
+      } catch (err) {
+        // nog altijd geen netwerk: deze en de volgende blijven staan
+        if (err instanceof OfflineError) { rest = list.slice(i); break; }
+        // een echte weigering (de locatie bestaat niet meer, de telling is al besteld, …)
+        // blijft niet eeuwig opnieuw proberen: melden en laten vallen
+        toast(`Een bewaarde telling raakte niet verstuurd: ${err.message}`, true);
+      }
+      rest = list.slice(i + 1);
+    }
+  } finally {
+    wachtrij.put(rest);
+    bezig = false;
+  }
+  toonVerbinding();
+  if (verstuurd) toast(verstuurd === 1 ? 'De bewaarde telling is alsnog verstuurd.' : `${verstuurd} bewaarde tellingen zijn alsnog verstuurd.`);
+  return verstuurd;
+}
+
+/**
+ * Toont bovenaan of het toestel verbinding heeft, en hoeveel tellingen er nog wachten.
+ * Aan de toog valt het bereik weg; dan moet zichtbaar zijn dat er lokaal bewaard wordt.
+ */
+export function toonVerbinding() {
+  const bar = qs('.topbar__inner');
+  if (!bar) return;
+  let pill = qs('#net');
+  const offline = navigator.onLine === false;
+  const wachtend = wachtrij.all().length;
+  if (!offline && !wachtend) return pill && pill.remove();
+
+  if (!pill) {
+    pill = el('span', { id: 'net', class: 'net' });
+    bar.append(pill);
+  }
+  pill.className = `net${offline ? ' net--off' : ''}`;
+  pill.textContent = offline
+    ? (wachtend ? `Offline · ${wachtend} te versturen` : 'Offline — je kan verder tellen')
+    : `${wachtend} telling${wachtend === 1 ? '' : 'en'} te versturen`;
+}
+
+/** De service worker zorgt dat de schermen ook zonder bereik openen. */
+export function startServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('/sw.js').catch(() => { /* bv. privémodus */ });
+}
+
+export const wisBewaardeGegevens = async () => {
+  try { (await navigator.serviceWorker?.ready)?.active?.postMessage('wis-cache'); } catch { /* niets */ }
+};
+
 export const params = () => new URLSearchParams(location.search);
 
 /** Het gekozen bedrijf blijft per browser bewaard. */
@@ -168,6 +266,13 @@ export async function mountHeader(active) {
     if (a.dataset.page === active) a.setAttribute('aria-current', 'page');
   });
 
+  // Eerst het offline-gedeelte, want dat moet ook werken als de server onbereikbaar is.
+  startServiceWorker();
+  toonVerbinding();
+  window.addEventListener('online', () => { toonVerbinding(); verstuurWachtrij(); });
+  window.addEventListener('offline', toonVerbinding);
+  verstuurWachtrij();
+
   const result = { user: null, companies: [], companyId: null };
   const data = await api('/api/catalog');
   result.user = data.user;
@@ -181,7 +286,11 @@ export async function mountHeader(active) {
       who.append(el('span', { text: code.label }), ' ');
       who.append(el('button', {
         class: 'linkish', text: 'andere code',
-        onclick: async () => { await api('/api/pin', { method: 'DELETE' }, false); location.reload(); },
+        onclick: async () => {
+          await api('/api/pin', { method: 'DELETE' }, false);
+          await wisBewaardeGegevens();     // op een gedeeld toestel niets van het vorige bedrijf laten staan
+          location.reload();
+        },
       }));
     } else if (data.user.protected && data.user.email) {
       who.append(el('span', { text: `Aangemeld als ${data.user.email}${data.user.admin ? '' : ' · geen beheerrechten'}` }));

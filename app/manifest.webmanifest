@@ -1,0 +1,21 @@
+{
+  "name": "Besteltool JE Concept",
+  "short_name": "Besteltool",
+  "description": "Stock tellen aan de toog en er meteen een bestelling van maken.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "nl-BE",
+  "background_color": "#F7F9FB",
+  "theme_color": "#10495F",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Stock tellen", "url": "/" },
+    { "name": "Overzicht", "url": "/dashboard" }
+  ]
+}
