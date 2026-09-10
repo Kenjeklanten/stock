@@ -81,6 +81,17 @@ De waarden die er nu in staan zijn **sober ingevuld in afwachting van de JE Conc
 vervang het palet en de fonts in `tokens.css` (en zet eventuele eigen fontbestanden in
 `app/assets/fonts/` met een `@font-face` bovenaan datzelfde bestand) en de hele tool volgt mee.
 
+### Het logo in de kop
+
+Zet het JE Concept-logo als **`app/logo.svg`** (`logo.png` of `logo.webp` mag ook) in de repository.
+Bij het bouwen komt het dan automatisch in de kop van elk scherm, in plaats van de tekst
+"Besteltool JE Concept"; er is verder niets aan te passen. Zolang het bestand er niet staat, blijft
+de tekst staan — zo hangt er nooit een kapotte afbeelding in de kop. `build.py` zegt bij elke bouw
+welk van de twee het geworden is.
+
+Het logo wordt getoond op 34 pixels hoog (26 op een telefoon), dus een liggende versie met wat lucht
+errond werkt het best. Een SVG heeft de voorkeur: die blijft scherp op elk scherm.
+
 ## Structuur
 
 ```

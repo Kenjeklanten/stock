@@ -208,6 +208,7 @@ async function loadExisting(countId) {
   qs('#page-intro').textContent = `Telling van ${dateNl(data.count.counted_on)}${data.count.created_by ? ` door ${data.count.created_by}` : ''}. Pas de getelde aantallen aan en bewaar; de bestelling wordt opnieuw berekend.`;
   qs('#btn-save').textContent = 'Bewaren';
   qs('#note').value = data.count.note || '';
+  vouwOpmerking();
   await fillLocations();
   qs('#location').value = String(data.count.location_id);
   qs('#location').disabled = true;
@@ -270,6 +271,26 @@ async function save() {
   }
 }
 
+/**
+ * De opmerking is zelden nodig maar stond op een telefoon bovenaan, waardoor de eerste
+ * producten uit beeld vielen. Ze staat nu ingeklapt; op een breed scherm is er plaats genoeg
+ * en blijft ze open, en een ingevulde opmerking klapt vanzelf open.
+ */
+function vouwOpmerking() {
+  const fold = qs('#note-fold');
+  const note = qs('#note');
+  if (!fold || !note) return;
+  const ruim = window.matchMedia('(min-width: 640px)').matches;
+  fold.open = ruim || !!note.value.trim();
+
+  const toon = () => {
+    const tekst = note.value.trim();
+    qs('#note-summary').textContent = tekst ? `Opmerking: ${tekst}` : 'Opmerking toevoegen';
+  };
+  note.addEventListener('input', toon);
+  toon();
+}
+
 async function fillLocations() {
   const data = await api(`/api/catalog?company_id=${state.companyId}`);
   const select = clear(qs('#location'));
@@ -299,6 +320,7 @@ async function init() {
   const active = await fillLocations();
   const select = qs('#location');
   select.addEventListener('change', () => loadLocation(num(select.value, null)).catch((e) => toast(e.message, true)));
+  vouwOpmerking();
   qs('#search').addEventListener('input', (e) => { state.filter = e.target.value; render(); });
   qs('#toggle-todo').addEventListener('click', (e) => {
     state.onlyTodo = !state.onlyTodo;

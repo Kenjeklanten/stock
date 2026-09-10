@@ -42,10 +42,11 @@
         <label for="location">Locatie</label>
         <select id="location"><option value="">Laden…</option></select>
       </div>
-      <div>
-        <label for="note">Opmerking (optioneel)</label>
+      <details class="fold" id="note-fold">
+        <summary><span id="note-summary">Opmerking toevoegen</span></summary>
+        <label class="sr-only" for="note">Opmerking bij deze telling</label>
         <input type="text" id="note" maxlength="200" placeholder="bv. levering verwacht op vrijdag">
-      </div>
+      </details>
     </div>
   </section>
 

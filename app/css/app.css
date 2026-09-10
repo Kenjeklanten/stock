@@ -36,6 +36,8 @@ a:hover { color: var(--text-link-hover); }
 .topbar { background: var(--surface-dark); color: var(--text-on-dark); }
 .topbar__inner { max-width: var(--container-max); margin: 0 auto; padding: var(--space-3) var(--gutter); display: flex; align-items: center; gap: var(--space-3) var(--space-4); flex-wrap: wrap; }
 .brand { font-family: var(--font-display); font-weight: var(--weight-black); font-size: var(--text-h4); color: var(--surface-page); text-decoration: none; display: flex; align-items: baseline; gap: var(--space-2); }
+.brand--logo { padding: 2px 0; }
+.brand--logo img { display: block; height: 34px; width: auto; max-width: 15rem; }
 .brand span { font-family: var(--font-body); font-weight: var(--weight-bold); font-size: var(--text-caption); color: var(--je-navy-300); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; }
 .topbar nav { display: flex; gap: var(--space-1); margin-left: auto; flex-wrap: wrap; }
 .topbar nav a {
@@ -151,6 +153,16 @@ input[type="checkbox"] { width: auto; min-height: auto; accent-color: var(--acti
 .notice--ok { border-left-color: var(--status-success); background: var(--status-success-soft); }
 .notice--warn { border-left-color: var(--status-warning); background: var(--status-warning-soft); }
 .notice ul { margin: var(--space-2) 0 0; padding-left: 1.2rem; }
+
+/* Een veld dat je zelden nodig hebt, mag op een telefoon de producten niet uit beeld duwen. */
+.fold > summary {
+  cursor: pointer; list-style: none; padding: 10px 0; min-height: 44px; display: flex; align-items: center;
+  font-family: var(--font-body); font-weight: var(--weight-bold); font-size: var(--text-body-sm); color: var(--text-link);
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: '＋'; margin-right: var(--space-2); font-family: var(--font-display); }
+.fold[open] > summary::before { content: '－'; }
+.fold[open] > summary { color: var(--text-muted); font-size: var(--text-caption); }
 
 /* ---------- telformulier ---------- */
 .count-group { margin-bottom: var(--space-5); }
@@ -294,6 +306,7 @@ details ul { margin: var(--space-2) 0 0; padding-left: 1.2rem; }
   .topbar__inner { padding: var(--space-2) var(--gutter); gap: var(--space-2); }
   .brand { font-size: var(--text-body-lg); }
   .brand span { display: none; }
+  .brand--logo img { height: 26px; max-width: 9rem; }
   .topbar nav {
     order: 3; width: 100%; margin-left: 0; flex-wrap: nowrap;
     overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;

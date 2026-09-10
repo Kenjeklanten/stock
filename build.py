@@ -33,8 +33,18 @@ def main(target="dist"):
     assets = list((out / "css").glob("*.css")) + list((out / "js").glob("*.js"))
     version = digest(assets)
 
+    # Staat er een logo in app/ (logo.svg, logo.png of logo.webp), dan komt dat in de kop in
+    # plaats van de woordmerk-tekst. Zolang het er niet is, blijft de tekst staan — zo hangt er
+    # nooit een kapotte afbeelding in de kop.
+    logo = next((n for n in ("logo.svg", "logo.png", "logo.webp") if (APP / n).exists()), None)
+    merk = ('<a class="brand" href="/">Besteltool <span>JE Concept</span></a>')
+    if logo:
+        merk_nieuw = f'<a class="brand brand--logo" href="/"><img src="/{logo}" alt="Besteltool JE Concept"></a>'
+
     for page in out.glob("*.html"):
         html = page.read_text(encoding="utf-8")
+        if logo:
+            html = html.replace(merk, merk_nieuw)
         html = re.sub(r'(href="/css/[^"?]+\.css)"', rf'\1?v={version}"', html)
         html = re.sub(r'(src="/js/[^"?]+\.js)"', rf'\1?v={version}"', html)
         page.write_text(html, encoding="utf-8")
@@ -63,6 +73,7 @@ def main(target="dist"):
 
     pages = sorted(p.name for p in out.glob("*.html"))
     print(f"besteltool gebouwd in {out} (versie {version}): {', '.join(pages)}")
+    print(f"kop: {'logo ' + logo if logo else 'tekst (zet app/logo.svg klaar voor het JE Concept-logo)'}")
 
 
 if __name__ == "__main__":
