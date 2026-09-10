@@ -145,6 +145,11 @@ input[type="checkbox"] { width: auto; min-height: auto; accent-color: var(--acti
 .kpi__value { font-family: var(--font-display); font-size: var(--text-h2); line-height: 1.1; font-variant-numeric: tabular-nums; }
 .kpi__label { font-size: var(--text-caption); color: var(--text-muted); }
 .columns { columns: 2 16rem; }
+td.center, th.center { text-align: center; }
+.f-num { max-width: 7rem; text-align: right; }
+b.bad  { color: var(--status-danger); }
+b.warn { color: var(--status-warning); }
+b.ok   { color: var(--text-muted); }
 .columns li { break-inside: avoid; }
 
 /* ---------- melding ---------- */

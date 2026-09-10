@@ -119,6 +119,56 @@ CREATE TABLE IF NOT EXISTS members (
   PRIMARY KEY (email, company_id)
 );
 
+-- ---------------------------------------------------------------------------------------------
+-- Verkoop uit de kassa. Wat er verkocht is, naast wat er uit de stock verdwenen is: het verschil
+-- tussen die twee is wat er weggegeven, gemorst of gestolen is.
+--
+-- De kassa spreekt een andere taal dan de voorraad: ze verkoopt "Jupiler 30cl 3,3" aan de toog
+-- "Oost - Toog 2", terwijl de voorraad "Jupiler 50l" op "Toog 2" telt. Twee koppeltabellen
+-- vertalen dat, en ze worden onthouden zodat een volgende import vanzelf klopt.
+
+CREATE TABLE IF NOT EXISTS sales_articles (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name           TEXT    NOT NULL,                       -- exact zoals in de kassa-export
+  product_id     INTEGER REFERENCES products(id) ON DELETE SET NULL,
+  units_per_sale REAL    NOT NULL DEFAULT 1,             -- voorraadeenheden per verkocht stuk
+  ignored        INTEGER NOT NULL DEFAULT 0,             -- 1 = telt niet mee (waarborg, testartikel, …)
+  created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS sales_articles_unique ON sales_articles (company_id, lower(name));
+
+CREATE TABLE IF NOT EXISTS sales_locations (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name        TEXT    NOT NULL,                          -- exact zoals in de kassa-export
+  location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+  ignored     INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS sales_locations_unique ON sales_locations (company_id, lower(name));
+
+-- Eén ingelezen bestand = één wedstrijd of één dag.
+CREATE TABLE IF NOT EXISTS sales_imports (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  label      TEXT    NOT NULL,                           -- bv. "Speeldag 10"
+  sold_on    TEXT    NOT NULL,                           -- YYYY-MM-DD
+  note       TEXT,
+  created_by TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS sales_imports_recent ON sales_imports (company_id, sold_on DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS sales_lines (
+  import_id     INTEGER NOT NULL REFERENCES sales_imports(id) ON DELETE CASCADE,
+  article_name  TEXT    NOT NULL,                        -- zoals in het bestand
+  location_name TEXT    NOT NULL,
+  qty           REAL    NOT NULL DEFAULT 0,
+  revenue       REAL,                                    -- EUR incl. btw
+  PRIMARY KEY (import_id, article_name, location_name)
+);
+
 -- Toegangscodes: de cijfercode die vóór de hele tool zit. Elke code draagt haar eigen rechten,
 -- dus wie enkel mag tellen krijgt een andere code dan wie alles mag. company_id leeg = alle
 -- bedrijven. Staat er geen enkele actieve code in, dan wordt er niets gevraagd.

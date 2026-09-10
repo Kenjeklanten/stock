@@ -25,6 +25,10 @@ import * as xlsxApi from '../functions/api/export/xlsx.js';
 import * as receiptApi from '../functions/api/counts/[id]/receipt.js';
 import * as codesApi from '../functions/api/admin/codes.js';
 import * as dashboardApi from '../functions/api/dashboard.js';
+import * as salesApi from '../functions/api/sales.js';
+import * as salesReportApi from '../functions/api/sales/[id].js';
+import * as salesMapApi from '../functions/api/admin/sales-mapping.js';
+import { inhoud, stelProductVoor, stelLocatieVoor } from '../functions/_lib/sales.js';
 import { bestellijstNaam } from '../functions/_lib/bestellijst.js';
 
 const schema = join(dirname(fileURLToPath(import.meta.url)), '..', 'schema.sql');
@@ -589,4 +593,102 @@ test('overzicht: wat er vandaag geteld en te bestellen is', async () => {
   assert.equal(dash.open_orders.length, 0, 'nagekeken leveringen staan niet meer open');
   assert.equal(dash.differences.length, 1);
   assert.equal(dash.differences[0].diff, -12);
+});
+
+test('kassanamen herkennen: inhoud, product en toog', () => {
+  assert.equal(inhoud('Jupiler 50l'), 50, 'een vat');
+  assert.equal(inhoud('Coca cola 24X25cl'), 0.25, 'één flesje uit de bak, niet de hele bak');
+  assert.equal(inhoud('Jupiler 30cl 3,3'), 0.3, '3,3 achteraan is de prijs, geen inhoud');
+  assert.equal(inhoud('Chips Paprika 2,5'), null, 'geen maat in de naam');
+
+  const producten = [
+    { id: 1, name: 'Jupiler 50l', unit: 'vat' },
+    { id: 2, name: 'Coca cola 24X25cl', unit: 'fles' },
+  ];
+  const bier = stelProductVoor('Jupiler 30cl 3,3', producten);
+  assert.equal(bier.product_id, 1);
+  assert.equal(bier.units_per_sale, 0.006, 'een glas van 30 cl uit een vat van 50 l');
+  assert.equal(stelProductVoor('Coca Cola 3', producten).units_per_sale, 1, 'zonder maat: één op één');
+  assert.equal(stelProductVoor('Waarborg beker -€2', producten), null, 'geen product, dus geen voorstel');
+
+  const locaties = [{ id: 3, name: 'Toog 2' }, { id: 4, name: 'Toog 5' }, { id: 5, name: 'Noord' }];
+  assert.equal(stelLocatieVoor('Oost - Toog 2', locaties).location_id, 3);
+  assert.equal(stelLocatieVoor('Oost - Toog 5: BinkieBar', locaties).location_id, 4, 'de toog achter de bijnaam');
+  assert.equal(stelLocatieVoor('Noord - Kant West', locaties).location_id, 5);
+  assert.equal(stelLocatieVoor('Beer bar', locaties), null, 'geen toog in de voorraad');
+});
+
+test('verschil tussen verkoop en stock: wat is er weg zonder verkocht te zijn', async () => {
+  const env = newEnv();
+  const { id: co } = await asJson(await companiesApi.onRequestPost(ctx(env, { method: 'POST', body: { name: 'STVV' } })));
+  const toog = await asJson(await locationsApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: co, name: 'Toog 2' } })));
+  const vat = await asJson(await productsApi.onRequestPost(ctx(env, {
+    method: 'POST',
+    body: { company_id: co, name: 'Jupiler 50l', unit: 'vat', pack_size: 1, base: { [toog.id]: 10 } },
+  })));
+
+  // telling vóór de wedstrijd: 8 vaten in huis, dus 2 besteld; die 2 zijn ook geleverd
+  const voor = await asJson(await countsApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { location_id: toog.id, counted_on: '2026-09-01', lines: [{ product_id: vat.id, loose: 8 }] },
+  })));
+  let detail = await asJson(await countApi.onRequestGet(ctx(env, { params: { id: String(voor.id) } })));
+  assert.equal(detail.lines[0].order_qty, 2, '10 basis − 8 geteld');
+  await receiptApi.onRequestPut(ctx(env, {
+    method: 'PUT', params: { id: String(voor.id) }, body: { lines: [{ product_id: vat.id, loose: 2 }], complete: true },
+  }));
+
+  // de wedstrijd: 1000 glazen van 30 cl verkocht = 6 vaten
+  const rapport = await asJson(await salesApi.onRequestPost(ctx(env, {
+    method: 'POST',
+    body: { company_id: co, label: 'Speeldag 10', sold_on: '2026-09-05', rows: [
+      { location: 'Oost - Toog 2', article: 'Jupiler 30cl 3,3', qty: 1000, revenue: 3300 },
+      { location: 'Oost - Toog 2', article: 'Waarborg beker -€2', qty: 500, revenue: -1000 },
+    ] },
+  })));
+
+  // zolang niets gekoppeld is, staan de namen bij de losse artikelen
+  let verschil = await asJson(await salesReportApi.onRequestGet(ctx(env, { params: { id: String(rapport.id) } })));
+  assert.equal(verschil.rows.length, 0);
+  assert.deepEqual(verschil.unmapped_articles.map((a) => a.name).sort(), ['Jupiler 30cl 3,3', 'Waarborg beker -€2']);
+
+  // het koppelscherm stelt de vertaling zelf voor
+  const mapping = await asJson(await salesMapApi.onRequestGet(ctx(env, { url: `https://x/api/admin/sales-mapping?company_id=${co}` })));
+  const bier = mapping.articles.find((a) => a.name === 'Jupiler 30cl 3,3');
+  assert.equal(bier.suggestion.product_id, vat.id);
+  assert.equal(bier.suggestion.units_per_sale, 0.006);
+  assert.equal(mapping.sales_locations.find((l) => l.name === 'Oost - Toog 2').suggestion.location_id, toog.id);
+
+  await salesMapApi.onRequestPost(ctx(env, {
+    method: 'POST',
+    body: { company_id: co,
+      articles: [
+        { name: 'Jupiler 30cl 3,3', product_id: vat.id, units_per_sale: 0.006 },
+        { name: 'Waarborg beker -€2', ignored: true },
+      ],
+      locations: [{ name: 'Oost - Toog 2', location_id: toog.id }] },
+  }));
+
+  // zonder eindtelling valt er nog niets te vergelijken
+  verschil = await asJson(await salesReportApi.onRequestGet(ctx(env, { params: { id: String(rapport.id) } })));
+  assert.equal(verschil.rows.length, 0);
+  assert.match(verschil.warnings.join(' '), /nog geen telling ná/);
+
+  // telling ná de wedstrijd: er staan nog 3 vaten
+  await countsApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { location_id: toog.id, counted_on: '2026-09-08', lines: [{ product_id: vat.id, loose: 3 }] },
+  }));
+
+  verschil = await asJson(await salesReportApi.onRequestGet(ctx(env, { params: { id: String(rapport.id) } })));
+  assert.equal(verschil.rows.length, 1);
+  const rij = verschil.rows[0];
+  assert.equal(rij.begin, 8);
+  assert.equal(rij.geleverd, 2);
+  assert.equal(rij.eind, 3);
+  assert.equal(rij.geleverd_nagekeken, true);
+  assert.equal(rij.verbruikt, 7, '8 + 2 − 3');
+  assert.equal(rij.verkocht, 6, '1000 × 0,006 vat');
+  assert.equal(rij.verschil, 1, 'één vat weg zonder verkoop');
+  assert.equal(rij.waarde, 550, '3300 euro voor 6 vaten → 550 per vat');
+  assert.equal(verschil.unmapped_articles.length, 0, 'de waarborg telt niet mee maar staat ook niet als los artikel');
+  assert.equal(verschil.totals.omzet, 2300, 'omzet is inclusief de waarborgregels');
 });

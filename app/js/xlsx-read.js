@@ -328,3 +328,71 @@ export const looksPerLocation = (sheets) => sheets.some((sheet) => {
   }
   return false;
 });
+
+/* ---------- verkooprapport uit de kassa ---------- */
+
+// De kolomkoppen van de kassa-export, in het Engels. Per kolom een paar schrijfwijzen, zodat een
+// export met licht andere koppen ook nog gelezen wordt.
+const VERKOOP_KOLOMMEN = {
+  location: ['sales locations', 'sales location', 'location', 'toog', 'verkooppunt'],
+  article: ['products', 'product', 'artikel', 'item'],
+  qty: ['quantity (total)', 'quantity total', 'quantity - sold', 'quantity', 'aantal'],
+  // let op: géén losse 'total' — de kassa-export heeft ook een kolom "Total" die leeg blijft
+  revenue: ['eur (incl. tax)', 'eur (incl tax)', 'eur incl. tax', 'omzet', 'omzet incl. btw'],
+};
+
+/**
+ * Leest een verkooprapport: één tabel met per regel een toog, een artikel en een aantal.
+ * Geeft null als het blad er niet naar uitziet, zodat de import kan zeggen wat er mis is.
+ */
+export function interpretVerkoop(sheets) {
+  for (const sheet of sheets) {
+    const kolom = {};
+    let koprij = 0;
+    // de kopregel staat bovenaan, maar niet noodzakelijk op rij 1
+    for (let r = 1; r <= Math.min(sheet.rows, 10) && !koprij; r++) {
+      const gevonden = {};
+      for (let c = 1; c <= sheet.cols; c++) {
+        const kop = norm(sheet.grid.get(`${r},${c}`));
+        if (!kop) continue;
+        for (const [veld, namen] of Object.entries(VERKOOP_KOLOMMEN)) {
+          if (gevonden[veld] === undefined && namen.includes(kop)) gevonden[veld] = c;
+        }
+      }
+      if (gevonden.location && gevonden.article && gevonden.qty) {
+        koprij = r;
+        Object.assign(kolom, gevonden);
+      }
+    }
+    if (!koprij) continue;
+
+    const rows = [];
+    const locaties = new Set();
+    const artikelen = new Set();
+    let totaalRegel = false;
+    for (let r = koprij + 1; r <= sheet.rows; r++) {
+      const locatie = String(sheet.grid.get(`${r},${kolom.location}`) ?? '').trim();
+      const artikel = String(sheet.grid.get(`${r},${kolom.article}`) ?? '').trim();
+      const aantal = Number(sheet.grid.get(`${r},${kolom.qty}`));
+      // de eindregel van de export draagt enkel totalen, zonder toog of artikel
+      if (!locatie || !artikel) { if (Number.isFinite(aantal)) totaalRegel = true; continue; }
+      if (!Number.isFinite(aantal) || !aantal) continue;
+      const omzet = kolom.revenue ? Number(sheet.grid.get(`${r},${kolom.revenue}`)) : NaN;
+      rows.push({ location: locatie, article: artikel, qty: aantal, revenue: Number.isFinite(omzet) ? omzet : null });
+      locaties.add(locatie);
+      artikelen.add(artikel);
+    }
+    if (!rows.length) continue;
+
+    return {
+      sheet: sheet.name,
+      rows,
+      locations: [...locaties].sort(),
+      articles: [...artikelen].sort(),
+      items: rows.reduce((a, r) => a + r.qty, 0),
+      revenue: rows.reduce((a, r) => a + (r.revenue || 0), 0),
+      skippedTotal: totaalRegel,
+    };
+  }
+  return null;
+}
