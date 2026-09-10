@@ -89,8 +89,10 @@ Bij het bouwen komt het dan automatisch in de kop van elk scherm, in plaats van 
 de tekst staan — zo hangt er nooit een kapotte afbeelding in de kop. `build.py` zegt bij elke bouw
 welk van de twee het geworden is.
 
-Het logo wordt getoond op 34 pixels hoog (26 op een telefoon), dus een liggende versie met wat lucht
-errond werkt het best. Een SVG heeft de voorkeur: die blijft scherp op elk scherm.
+Het logo wordt getoond op 40 pixels hoog (32 op een telefoon). Omdat het JE Concept-logo
+donkerblauw is en de kopbalk dat ook, staat het op een licht plaatje; lever je ooit een
+uitgespaarde (witte) versie, dan mag `.brand--logo { background: … }` in `app.css` weg. Een SVG
+heeft de voorkeur boven een PNG: die blijft scherp op elk scherm en weegt bijna niets.
 
 ## Structuur
 

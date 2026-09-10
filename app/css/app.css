@@ -36,8 +36,13 @@ a:hover { color: var(--text-link-hover); }
 .topbar { background: var(--surface-dark); color: var(--text-on-dark); }
 .topbar__inner { max-width: var(--container-max); margin: 0 auto; padding: var(--space-3) var(--gutter); display: flex; align-items: center; gap: var(--space-3) var(--space-4); flex-wrap: wrap; }
 .brand { font-family: var(--font-display); font-weight: var(--weight-black); font-size: var(--text-h4); color: var(--surface-page); text-decoration: none; display: flex; align-items: baseline; gap: var(--space-2); }
-.brand--logo { padding: 2px 0; }
-.brand--logo img { display: block; height: 34px; width: auto; max-width: 15rem; }
+/* Het JE Concept-logo is donkerblauw en de kopbalk ook, dus het staat op een licht plaatje.
+   Komt er ooit een uitgespaarde (witte) versie, dan mag de achtergrond hier weg. */
+.brand--logo {
+  background: var(--je-white); border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2); line-height: 0;
+}
+.brand--logo img { display: block; height: 40px; width: auto; max-width: 14rem; }
 .brand span { font-family: var(--font-body); font-weight: var(--weight-bold); font-size: var(--text-caption); color: var(--je-navy-300); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; }
 .topbar nav { display: flex; gap: var(--space-1); margin-left: auto; flex-wrap: wrap; }
 .topbar nav a {
@@ -306,7 +311,8 @@ details ul { margin: var(--space-2) 0 0; padding-left: 1.2rem; }
   .topbar__inner { padding: var(--space-2) var(--gutter); gap: var(--space-2); }
   .brand { font-size: var(--text-body-lg); }
   .brand span { display: none; }
-  .brand--logo img { height: 26px; max-width: 9rem; }
+  .brand--logo img { height: 32px; max-width: 9rem; }
+  .brand--logo { padding: 3px var(--space-1); }
   .topbar nav {
     order: 3; width: 100%; margin-left: 0; flex-wrap: nowrap;
     overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
