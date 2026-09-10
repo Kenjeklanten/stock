@@ -70,20 +70,35 @@ function cookie(request, name) {
 }
 
 /**
- * De toegangscode zit vóór de API. De pagina's zelf laden wel, maar tonen zonder code niets:
- * elke aanvraag naar /api/ geeft 401 met code 'pin', waarna het scherm om de cijfers vraagt.
+ * De toegangscode zit vóór alles. Wie ze nog niet gegeven heeft:
+ *
+ *   - een gewone paginaoproep gaat naar /login, met een spoor terug naar waar hij heen wilde;
+ *   - een aanvraag naar /api/ krijgt 401 met code 'pin', zodat een scherm dat al openstaat
+ *     zichzelf naar het aanmeldscherm stuurt;
+ *   - het aanmeldscherm zelf, de stijlbestanden en de iconen blijven bereikbaar.
  *
  * Geeft { gate } terug als het verzoek geweigerd wordt, of { code } met de code waarmee deze
  * browser binnen is — die bepaalt verderop mee welke rechten er gelden.
  */
+const OPEN_PADEN = ['/login', '/css/', '/js/', '/icon-', '/favicon.svg', '/manifest.webmanifest', '/sw.js'];
+
 async function pinGate(request, env, url) {
   if (!env.DB) return {};
   const codes = await activeCodes(env, env.DB);
   if (!codes.length) return {};
   const code = await sessionCode(request, codes, env);
   if (code) return { code };
-  if (!url.pathname.startsWith('/api/') || url.pathname === '/api/pin') return {};
-  return { gate: json({ error: 'Geef eerst de toegangscode van de besteltool.', code: 'pin' }, 401) };
+
+  if (url.pathname.startsWith('/api/')) {
+    if (url.pathname === '/api/pin') return {};
+    return { gate: json({ error: 'Geef eerst de toegangscode van de besteltool.', code: 'pin' }, 401) };
+  }
+  if (OPEN_PADEN.some((pad) => url.pathname === pad || url.pathname.startsWith(pad))) return {};
+
+  const wilPagina = (request.headers.get('accept') || '').includes('text/html');
+  if (!wilPagina) return {};
+  const terug = encodeURIComponent(url.pathname + url.search);
+  return { gate: new Response(null, { status: 302, headers: { location: `/login?next=${terug}`, 'cache-control': 'no-store' } }) };
 }
 
 export async function onRequest(context) {

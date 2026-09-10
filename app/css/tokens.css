@@ -2,43 +2,45 @@
    Besteltool JE Concept — design tokens.
 
    Dit is de ENIGE plaats met kleuren, lettertypes, afstanden en vormen.
-   Zolang de echte JE Concept-huisstijl niet aangeleverd is, staan hier
-   sobere waarden die er professioneel uitzien; vervang ze door de tokens
-   van JE Concept en de hele tool volgt mee. app.css gebruikt uitsluitend
-   de rolnamen hieronder (--surface-*, --text-*, --action-*, --status-*),
-   dus je hoeft enkel dit bestand aan te passen.
+   Het palet is genomen uit het JE Concept-logo: het diepe marineblauw van
+   de zeshoek en de letters, het lichte blauw van de tweede zeshoek, en
+   wit als grond. Eén warme kleur doet dienst als accent — verder blijft
+   alles blauw, zodat groen, oranje en rood enkel iets betekenen.
+
+   app.css gebruikt uitsluitend de rolnamen hieronder (--surface-*,
+   --text-*, --action-*, --status-*), dus je hoeft enkel dit bestand aan
+   te passen om de hele tool mee te laten kleuren.
    ===================================================================== */
 :root {
-  /* ---------- palet (vervangen door de huisstijl) ---------- */
-  --je-navy-900: #0B1F33;
-  --je-navy-800: #12314F;
-  --je-navy-700: #1B456C;
-  --je-navy-500: #2E6DA4;
-  --je-navy-300: #8FB4D4;
-  --je-navy-100: #E3ECF4;
+  /* ---------- palet, uit het logo ---------- */
+  --je-navy-900: #071B2F;   /* bijna zwart blauw: de kopbalk en het aanmeldscherm */
+  --je-navy-800: #0A2947;
+  --je-navy-700: #0D3A63;   /* de merkkleur: de zeshoek en de letters JE */
+  --je-navy-600: #14508A;
+  --je-navy-500: #2A6DAA;
+  --je-navy-300: #9DC0DE;
+  --je-navy-200: #C9DDF0;   /* de lichte zeshoek achter het logo */
+  --je-navy-100: #E7F0F9;
 
-  --je-teal-700: #0A6E6E;
-  --je-teal-500: #12A594;
-  --je-teal-100: #E1F5F1;
+  --je-amber-800: #8A5200;
+  --je-amber-600: #C87F0E;
+  --je-amber-500: #E8A33A;  /* het enige warme accent */
+  --je-amber-100: #FDF2DE;
 
-  --je-amber-800: #8A4B00;
-  --je-amber-500: #E0930A;
-  --je-amber-100: #FDF1DC;
+  --je-red-700: #A8231B;
+  --je-red-300: #EFB2AD;
+  --je-red-100: #FBEAE8;
 
-  --je-red-700: #B3261E;
-  --je-red-300: #F1B4B0;
-  --je-red-100: #FCEBEA;
+  --je-green-700: #12703F;
+  --je-green-300: #93D2AE;
+  --je-green-100: #E6F4EB;
 
-  --je-green-700: #1B7A45;
-  --je-green-300: #9AD6B4;
-  --je-green-100: #E7F5EC;
-
-  --je-slate-900: #101828;
-  --je-slate-700: #344054;
-  --je-slate-500: #667085;
-  --je-slate-300: #D0D5DD;
-  --je-slate-100: #EAECF0;
-  --je-slate-50:  #F7F8FA;
+  --je-slate-900: #0F1B26;
+  --je-slate-700: #33475B;
+  --je-slate-500: #64798E;
+  --je-slate-300: #CBD6E0;
+  --je-slate-100: #E7EDF3;
+  --je-slate-50:  #F5F8FB;
   --je-white:     #FFFFFF;
 
   /* ---------- rollen ---------- */
@@ -50,15 +52,15 @@
   --text-strong:  var(--je-navy-900);
   --text-body:    var(--je-slate-700);
   --text-muted:   var(--je-slate-500);
-  --text-on-dark: #EAF1F8;
+  --text-on-dark: #DCE8F4;
   --text-on-brand: var(--je-white);
   --text-link:       var(--je-navy-700);
   --text-link-hover: var(--je-navy-900);
 
   --action-primary:         var(--je-navy-700);
   --action-primary-hover:   var(--je-navy-800);
-  --action-secondary:       var(--je-teal-700);
-  --action-secondary-hover: #085757;
+  --action-secondary:       var(--je-navy-600);
+  --action-secondary-hover: var(--je-navy-700);
   --action-accent:          var(--je-amber-500);
 
   --border-soft:   var(--je-slate-300);
@@ -73,12 +75,15 @@
   --status-info:    var(--je-navy-700);
   --status-info-soft: var(--je-navy-100);
 
-  --focus-ring: var(--je-navy-500);
-  --ring-focus: 0 0 0 3px rgba(46, 109, 164, .35);
+  --focus-ring: var(--je-navy-600);
+  --ring-focus: 0 0 0 3px rgba(20, 80, 138, .32);
 
-  /* ---------- typografie ---------- */
-  --font-display: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-body:    "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* ---------- typografie ----------
+     Het logo zet "JE" in een klassieke schreefletter; die toon keert terug in de titels.
+     Cijfers en knoppen blijven schreefloos: aan de toog moet een 3 een 3 zijn. */
+  --font-heading: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+  --font-display: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-body:    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
   --text-h1: clamp(26px, 3vw, 34px);
   --text-h2: 20px;
@@ -120,9 +125,9 @@
   --border-regular: 1px;
   --border-chunky: 3px;
 
-  --shadow-sm:   0 1px 2px rgba(16, 24, 40, .06);
-  --shadow-card: 0 1px 3px rgba(16, 24, 40, .08), 0 8px 24px -16px rgba(16, 24, 40, .28);
-  --shadow-lift: 0 12px 28px -12px rgba(16, 24, 40, .34);
+  --shadow-sm:   0 1px 2px rgba(7, 27, 47, .06);
+  --shadow-card: 0 1px 2px rgba(7, 27, 47, .07), 0 10px 26px -18px rgba(7, 27, 47, .30);
+  --shadow-lift: 0 14px 30px -14px rgba(7, 27, 47, .36);
 
   /* ---------- beweging ---------- */
   --dur-fast: 120ms;

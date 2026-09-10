@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Aanmelden — Besteltool JE Concept</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#071B2F">
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="login">
+
+<div class="login__art" aria-hidden="true">
+  <svg viewBox="0 0 200 200" role="presentation" focusable="false">
+    <polygon points="100,6 181,53 181,147 100,194 19,147 19,53" />
+    <polygon points="100,26 164,63 164,137 100,174 36,137 36,63" />
+  </svg>
+</div>
+
+<main class="login__card">
+  <div class="login__brand">
+    <span class="login__wordmark">Besteltool <b>JE Concept</b></span>
+  </div>
+
+  <h1>Toegangscode</h1>
+  <p class="login__intro">Toets de cijfercode van de besteltool. Welke code je gebruikt, bepaalt ook wat je te zien krijgt.</p>
+
+  <form id="code-form" novalidate>
+    <div class="code" id="code-boxes">
+      <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code"
+             maxlength="8" pattern="[0-9]*" aria-label="Toegangscode" autofocus>
+    </div>
+    <p class="code__error" id="code-error" role="alert"></p>
+    <button class="btn btn--lg" id="code-submit" type="submit">Openen</button>
+  </form>
+
+  <p class="login__foot">Dit toestel onthoudt je dertig dagen. Op een gedeelde computer meld je je af met “andere code” bovenaan het scherm.</p>
+</main>
+
+<script type="module" src="/js/login.js"></script>
+</body>
+</html>

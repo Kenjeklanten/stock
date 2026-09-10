@@ -18,59 +18,22 @@ export async function api(path, options = {}, retry = true) {
   }
   const type = res.headers.get('content-type') || '';
   const data = type.includes('json') ? await res.json().catch(() => ({})) : {};
-  // Zonder toegangscode antwoordt de server 401; dan vragen we ze en proberen we opnieuw.
+  // Zonder toegangscode antwoordt de server 401; dan gaat de bezoeker naar het aanmeldscherm
+  // en komt hij daarna terug op de pagina waar hij was.
   if (res.status === 401 && data.code === 'pin' && retry) {
-    await askForCode();
-    return api(path, options, false);
+    naarAanmelden();
+    // de omleiding is onderweg; deze belofte lost nooit op, zodat het scherm niets half toont
+    return new Promise(() => {});
   }
   if (!res.ok) throw new Error(data.error || `Er ging iets mis (HTTP ${res.status}).`);
   return data;
 }
 
-/** Vraagt de toegangscode en lost pas op als ze klopt. */
-export function askForCode() {
-  const existing = qs('#code-gate');
-  if (existing) return existing._wait;
-
-  let done;
-  const wait = new Promise((resolve) => { done = resolve; });
-  const input = el('input', {
-    type: 'text', inputmode: 'numeric', autocomplete: 'off', maxlength: '8',
-    id: 'code-input', 'aria-label': 'Toegangscode', placeholder: '••••',
-  });
-  const melding = el('p', { class: 'small', role: 'alert' });
-  const knop = el('button', { class: 'btn', text: 'Openen' });
-
-  const probeer = async () => {
-    const code = input.value.trim();
-    if (!code) return;
-    knop.disabled = true;
-    try {
-      await api('/api/pin', { method: 'POST', body: { code } }, false);
-      gate.remove();
-      done();
-    } catch (err) {
-      melding.textContent = err.message;
-      input.value = '';
-      input.focus();
-    } finally {
-      knop.disabled = false;
-    }
-  };
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') probeer(); });
-  knop.addEventListener('click', probeer);
-
-  const gate = el('div', { id: 'code-gate', class: 'gate' }, [
-    el('div', { class: 'gate__card' }, [
-      el('h2', { text: 'Toegangscode' }),
-      el('p', { class: 'small muted', text: 'Geef de cijfercode van de besteltool.' }),
-      input, melding, knop,
-    ]),
-  ]);
-  gate._wait = wait;
-  document.body.append(gate);
-  setTimeout(() => input.focus(), 50);
-  return wait;
+/** Naar het aanmeldscherm, met een spoor terug naar waar we vandaan komen. */
+export function naarAanmelden() {
+  if (location.pathname === '/login') return;
+  const terug = encodeURIComponent(location.pathname + location.search);
+  location.href = `/login?next=${terug}`;
 }
 
 let toastTimer;

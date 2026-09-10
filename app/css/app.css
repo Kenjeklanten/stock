@@ -15,10 +15,10 @@ body {
   line-height: var(--leading-normal);
   padding-bottom: env(safe-area-inset-bottom);
 }
-h1, h2, h3 { font-family: var(--font-display); color: var(--text-strong); margin: 0 0 var(--space-2); line-height: var(--leading-snug); }
-h1 { font-size: var(--text-h3); font-weight: var(--weight-black); }
+h1, h2 { font-family: var(--font-heading); color: var(--text-strong); margin: 0 0 var(--space-2); line-height: var(--leading-snug); letter-spacing: -.005em; }
+h1 { font-size: var(--text-h3); font-weight: var(--weight-bold); }
 h2 { font-size: var(--text-h4); font-weight: var(--weight-bold); }
-h3 { font-size: var(--text-body-md); font-weight: var(--weight-bold); }
+h3 { font-family: var(--font-display); color: var(--text-strong); margin: 0 0 var(--space-2); font-size: var(--text-body-md); font-weight: var(--weight-bold); line-height: var(--leading-snug); }
 p { margin: 0; }
 a { color: var(--text-link); }
 a:hover { color: var(--text-link-hover); }
@@ -33,9 +33,13 @@ a:hover { color: var(--text-link-hover); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* ---------- kop ---------- */
-.topbar { background: var(--surface-dark); color: var(--text-on-dark); }
+.topbar {
+  background: linear-gradient(180deg, var(--je-navy-800), var(--surface-dark));
+  color: var(--text-on-dark);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .10);
+}
 .topbar__inner { max-width: var(--container-max); margin: 0 auto; padding: var(--space-3) var(--gutter); display: flex; align-items: center; gap: var(--space-3) var(--space-4); flex-wrap: wrap; }
-.brand { font-family: var(--font-display); font-weight: var(--weight-black); font-size: var(--text-h4); color: var(--surface-page); text-decoration: none; display: flex; align-items: baseline; gap: var(--space-2); }
+.brand { font-family: var(--font-heading); font-weight: var(--weight-bold); font-size: var(--text-h4); color: var(--je-white); text-decoration: none; display: flex; align-items: baseline; gap: var(--space-2); letter-spacing: .01em; }
 /* Het JE Concept-logo is donkerblauw en de kopbalk ook, dus het staat op een licht plaatje.
    Komt er ooit een uitgespaarde (witte) versie, dan mag de achtergrond hier weg. */
 .brand--logo {
@@ -253,6 +257,7 @@ th {
 th:first-child { border-top-left-radius: var(--radius-sm); }
 th:last-child { border-top-right-radius: var(--radius-sm); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.num b, .kpi__value, .sticky-bar .stat b, .count-field input { font-variant-numeric: tabular-nums; }
 tbody tr:hover { background: var(--surface-sunken); }
 /* In een dichte tabel zijn pilvormige velden te breed: daar past de kleine radius beter. */
 td input, td select { min-height: 38px; padding: 6px 10px; border-radius: var(--radius-sm); border-width: 1px; }
@@ -278,20 +283,73 @@ td select { padding-right: 30px; background-position: right 8px center; backgrou
 .tabs button[aria-selected="true"] { color: var(--text-strong); border-bottom-color: var(--action-primary); }
 
 /* ---------- toegangscode ---------- */
-.gate {
-  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
-  background: rgba(11, 31, 51, .75); padding: var(--gutter);
+/* ---------- aanmeldscherm ---------- */
+.login {
+  min-height: 100svh; display: grid; place-items: center; padding: var(--gutter);
+  background: radial-gradient(120% 90% at 50% 0%, var(--je-navy-800) 0%, var(--je-navy-900) 62%);
+  color: var(--text-on-dark);
+  position: relative; overflow: hidden;
 }
-.gate__card {
-  background: var(--surface-card); border-radius: var(--radius-card); box-shadow: var(--shadow-lift);
-  padding: var(--space-5); width: min(22rem, 100%); display: grid; gap: var(--space-3);
+/* twee zeshoeken, zoals in het merkteken: ze omlijsten de kaart in plaats van erachter weg te vallen */
+.login__art {
+  position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
 }
-.gate__card h2 { margin: 0; }
-.gate__card input {
-  font-family: var(--font-display); font-size: 2rem; letter-spacing: .4em;
-  text-align: center; padding: var(--space-3);
+.login__art svg { width: min(40rem, 108vw); height: auto; display: block; opacity: .55; }
+.login__art polygon { fill: none; stroke: var(--je-navy-600); stroke-width: 1.1; }
+.login__art polygon + polygon { stroke: var(--je-navy-500); stroke-width: .8; }
+
+.login__card {
+  position: relative; z-index: 1;
+  width: min(26rem, 100%);
+  background: var(--surface-card); color: var(--text-body);
+  border-radius: var(--radius-card); box-shadow: var(--shadow-lift);
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  text-align: center;
 }
-.gate__card p[role="alert"]:not(:empty) { color: var(--status-danger); margin: 0; }
+.login__brand { margin-bottom: var(--space-5); }
+.login__wordmark {
+  font-family: var(--font-heading); font-size: var(--text-h4); color: var(--text-muted);
+  display: inline-flex; gap: .4em; align-items: baseline;
+}
+.login__wordmark b { color: var(--action-primary); font-weight: var(--weight-bold); }
+.login__brand img { height: 56px; width: auto; max-width: 14rem; display: block; margin: 0 auto; }
+.login h1 { font-size: var(--text-h3); margin-bottom: var(--space-2); }
+.login__intro { color: var(--text-muted); font-size: var(--text-body-sm); margin-bottom: var(--space-5); }
+.login__foot { color: var(--text-muted); font-size: var(--text-caption); margin-top: var(--space-4); }
+
+/* De vakjes zijn de weergave; het echte invoerveld ligt er onzichtbaar overheen. */
+.code { position: relative; display: flex; gap: var(--space-2); justify-content: center; }
+.code input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; border: 0; padding: 0; font-size: 16px;   /* 16px: anders zoomt iOS in */
+  cursor: pointer;
+}
+.code__box {
+  width: 3.1rem; height: 3.8rem; border-radius: var(--radius-md);
+  border: var(--border-regular) solid var(--border-soft); background: var(--surface-sunken);
+  display: grid; place-items: center;
+  font-family: var(--font-display); font-size: 1.75rem; font-weight: var(--weight-bold);
+  color: var(--text-strong); font-variant-numeric: tabular-nums;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.code__box--vol { background: var(--surface-card); border-color: var(--je-navy-300); }
+.code__box--nu { border-color: var(--action-primary); box-shadow: var(--ring-focus); background: var(--surface-card); }
+.code--fout .code__box { border-color: var(--status-danger); animation: schud 320ms var(--ease-out); }
+@keyframes schud {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+.code__error:not(:empty) {
+  color: var(--status-danger); font-size: var(--text-body-sm); font-weight: var(--weight-bold);
+  margin-top: var(--space-3);
+}
+.btn--lg { width: 100%; margin-top: var(--space-4); padding: 14px 24px; font-size: var(--text-body-md); }
+.login--ok .login__card { opacity: .6; transition: opacity var(--dur-base) var(--ease-out); }
+
+@media (max-width: 380px) {
+  .code__box { width: 2.7rem; height: 3.4rem; font-size: 1.5rem; }
+}
 
 /* ---------- toast ---------- */
 #toast {
