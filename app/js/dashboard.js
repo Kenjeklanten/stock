@@ -61,6 +61,43 @@ function teBestellen(data) {
     ]));
 }
 
+/** Wat er nu in huis staat, per toog, met een doorklik naar de stock zelf. */
+function stockOverzicht(data) {
+  if (!data.stock.length) return null;
+  const rijen = data.stock.map((l) => el('tr', {}, [
+    el('td', {}, [el('a', { href: `/stock?location_id=${l.location_id}`, text: l.location_name })]),
+    el('td', { text: dateNl(l.counted_on) }),
+    el('td', { class: 'num', text: String(l.producten) }),
+    el('td', { class: 'num' }, [l.onder_basis
+      ? el('b', { class: 'warn', text: String(l.onder_basis) })
+      : el('span', { class: 'muted', text: '0' })]),
+    el('td', { class: 'num' }, [l.leeg
+      ? el('b', { class: 'bad', text: String(l.leeg) })
+      : el('span', { class: 'muted', text: '0' })]),
+  ]));
+  return card('Stock nu',
+    el('p', { class: 'small muted', text: 'De laatste telling, plus wat er geleverd is, plus of min de geboekte bewegingen, min wat er sindsdien verkocht is. Klik op een toog voor de details en de tijdlijn per product.' }),
+    el('div', { class: 'table-wrap mt-2' }, [el('table', {}, [
+      el('thead', {}, [el('tr', {}, [
+        el('th', { text: 'Toog' }), el('th', { text: 'Laatst geteld' }),
+        el('th', { class: 'num', text: 'Producten' }), el('th', { class: 'num', text: 'Onder basis' }),
+        el('th', { class: 'num', text: 'Leeg' }),
+      ])]),
+      el('tbody', {}, rijen),
+    ])]),
+    el('div', { class: 'row mt-2' }, [el('a', { class: 'btn btn--ghost', href: '/stock', text: 'Naar de stock' })]));
+}
+
+/** De laatste handmatige bewegingen: drank die zonder telling of levering wegging of bijkwam. */
+function bewegingen(data) {
+  if (!data.moves || !data.moves.length) return null;
+  return card('Laatste stockbewegingen',
+    el('ul', { class: 'small' }, data.moves.map((m) => el('li', {
+      text: `${dateNl(m.moved_on)} · ${m.location_name} · ${m.product_name}: ${m.qty > 0 ? '+' : ''}${fmt(m.qty)} ${m.unit || 'stuk'}`
+        + ` — ${m.reason_name || 'handmatige aanpassing'}${m.note ? ` (${m.note})` : ''}`,
+    }))));
+}
+
 function leveringen(data) {
   if (!data.open_orders.length) return null;
   const rows = data.open_orders.map((o) => el('tr', {}, [
@@ -116,7 +153,9 @@ async function load() {
   const data = await api(`/api/dashboard${header.companyId ? `?company_id=${header.companyId}` : ''}`);
   const content = clear(qs('#content'));
   content.append(kop(data), teBestellen(data));
-  for (const blok of [leveringen(data), verschillen(data), tellingen(data)]) if (blok) content.append(blok);
+  for (const blok of [stockOverzicht(data), leveringen(data), verschillen(data), bewegingen(data), tellingen(data)]) {
+    if (blok) content.append(blok);
+  }
 }
 
 async function init() {

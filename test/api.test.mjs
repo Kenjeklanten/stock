@@ -26,6 +26,9 @@ import * as salesApi from '../functions/api/sales.js';
 import * as salesReportApi from '../functions/api/sales/[id].js';
 import * as salesMapApi from '../functions/api/admin/sales-mapping.js';
 import { inhoud, stelProductVoor, stelLocatieVoor } from '../functions/_lib/sales.js';
+import * as stockApi from '../functions/api/stock.js';
+import * as movesApi from '../functions/api/moves.js';
+import * as reasonsApi from '../functions/api/admin/reasons.js';
 import { bestellijstNaam } from '../functions/_lib/bestellijst.js';
 
 const schema = join(dirname(fileURLToPath(import.meta.url)), '..', 'schema.sql');
@@ -570,4 +573,88 @@ test('verschil tussen verkoop en stock: wat is er weg zonder verkocht te zijn', 
   assert.equal(rij.waarde, 550, '3300 euro voor 6 vaten → 550 per vat');
   assert.equal(verschil.unmapped_articles.length, 0, 'de waarborg telt niet mee maar staat ook niet als los artikel');
   assert.equal(verschil.totals.omzet, 2300, 'omzet is inclusief de waarborgregels');
+});
+
+test('actuele stock: telling, levering, handmatige beweging en verkoop bij elkaar', async () => {
+  const env = newEnv();
+  const ids = await seed(env);
+
+  // reden aanmaken en de telling zetten: 48 basis cola, 24 geteld → 24 besteld
+  const reden = await asJson(await reasonsApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { company_id: ids.co, name: 'Drank Rode Kruis', direction: 'uit' },
+  })));
+  const { id } = await asJson(await countsApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { location_id: ids.loc, counted_on: '2026-09-01', lines: [{ product_id: ids.cola, loose: 24 }] },
+  })));
+
+  let stock = (await asJson(await stockApi.onRequestGet(ctx(env, { url: `https://x/api/stock?company_id=${ids.co}&location_id=${ids.loc}` })))).stock;
+  let cola = stock.find((r) => r.product_id === ids.cola);
+  assert.equal(cola.geteld, 24);
+  assert.equal(cola.nu, 24, 'zonder levering of beweging staat er wat er geteld is');
+  assert.equal(cola.besteld_niet_geleverd, 24, 'de bestelling is nog niet nagekeken');
+
+  // levering inboeken: één bak van 24 kwam binnen
+  await receiptApi.onRequestPut(ctx(env, {
+    method: 'PUT', params: { id: String(id) }, body: { lines: [{ product_id: ids.cola, packs: 1 }], complete: true },
+  }));
+  // twee bakken naar het Rode Kruis
+  const beweging = await movesApi.onRequestPost(ctx(env, {
+    method: 'POST',
+    body: { location_id: ids.loc, product_id: ids.cola, qty: -48, reason_id: reden.id, note: 'twee bakken' },
+  }));
+  assert.equal(beweging.status, 201);
+
+  stock = (await asJson(await stockApi.onRequestGet(ctx(env, { url: `https://x/api/stock?company_id=${ids.co}&location_id=${ids.loc}` })))).stock;
+  cola = stock.find((r) => r.product_id === ids.cola);
+  assert.equal(cola.geleverd, 24);
+  assert.equal(cola.bewegingen, -48);
+  assert.equal(cola.besteld_niet_geleverd, 0, 'de levering is nagekeken');
+  assert.equal(cola.nu, 0, '24 geteld + 24 geleverd − 48 weggegeven');
+
+  // de tijdlijn vertelt hetzelfde verhaal, van nieuw naar oud
+  const lijn = await asJson(await stockApi.onRequestGet(ctx(env, {
+    url: `https://x/api/stock?company_id=${ids.co}&location_id=${ids.loc}&product_id=${ids.cola}&timeline=1`,
+  })));
+  assert.equal(lijn.product.name, 'Cola 33cl');
+  assert.deepEqual(lijn.events.map((e) => e.soort), ['beweging', 'levering', 'telling']);
+  assert.equal(lijn.events[0].tekst, 'Drank Rode Kruis');
+  assert.equal(lijn.events[0].saldo, 0, 'stand na de laatste gebeurtenis');
+  assert.equal(lijn.events[1].saldo, 48, 'na de levering stonden er 48');
+  assert.equal(lijn.events[2].saldo, 24, 'de telling zet de stand vast');
+});
+
+test('een reden die al gebruikt is, verdwijnt niet zomaar', async () => {
+  const env = newEnv();
+  const ids = await seed(env);
+  const reden = await asJson(await reasonsApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { company_id: ids.co, name: 'Drank bussen' },
+  })));
+  await countsApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { location_id: ids.loc, lines: [{ product_id: ids.cola, loose: 10 }] },
+  }));
+  await movesApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { location_id: ids.loc, product_id: ids.cola, qty: -6, reason_id: reden.id },
+  }));
+
+  const res = await asJson(await reasonsApi.onRequestDelete(ctx(env, { method: 'DELETE', url: `https://x/api/admin/reasons?id=${reden.id}` })));
+  assert.equal(res.archived, true);
+  const over = await asJson(await reasonsApi.onRequestGet(ctx(env, { url: `https://x/api/admin/reasons?company_id=${ids.co}` })));
+  assert.equal(over.reasons[0].active, 0, 'op non-actief, niet weg');
+
+  // en de beweging zelf blijft leesbaar
+  const moves = await asJson(await movesApi.onRequestGet(ctx(env, { url: `https://x/api/moves?company_id=${ids.co}` })));
+  assert.equal(moves.moves[0].reason_name, 'Drank bussen');
+  assert.equal(moves.moves[0].qty, -6);
+});
+
+test('een beweging kan niet naar een product van een ander bedrijf', async () => {
+  const env = newEnv();
+  const ids = await seed(env);
+  const ander = await asJson(await companiesApi.onRequestPost(ctx(env, { method: 'POST', body: { name: 'Bistro het Vinne' } })));
+  const plek = await asJson(await locationsApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: ander.id, name: 'Bar' } })));
+  const res = await movesApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { location_id: plek.id, product_id: ids.cola, qty: -1 },
+  }));
+  assert.equal(res.status, 400);
+  assert.match((await asJson(res)).error, /hoort niet bij dit bedrijf/);
 });

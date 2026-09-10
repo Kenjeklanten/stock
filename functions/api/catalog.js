@@ -40,12 +40,14 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
   requireCompany(scope, companyId);
 
   out.company = allowed.find((c) => c.id === companyId) || null;
-  const [locations, suppliers] = await Promise.all([
+  const [locations, suppliers, reasons] = await Promise.all([
     D.prepare('SELECT id, name, sort, active FROM locations WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),
     D.prepare('SELECT id, name, sort FROM suppliers WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),
+    D.prepare('SELECT id, name, direction, sort, active FROM stock_reasons WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),
   ]);
   out.locations = locations.results || [];
   out.suppliers = suppliers.results || [];
+  out.reasons = reasons.results || [];
 
   if (locationId) {
     const products = await D.prepare(

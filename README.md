@@ -36,8 +36,28 @@ Voorbeeld: basisstock 48 flessen, bak van 24, geteld 1 pak + 6 los = 30 → teko
 | `/bestelling?id=…` | Het resultaat: bestelregels per leverancier, met de bestellijst in Excel (één telling of de hele dag), de bestelbon in PDF, CSV en "markeer als besteld". |
 | `/ontvangst?id=…` | Levering inboeken: wat er effectief geleverd is, met het verschil tegenover de bestelling. |
 | `/historiek` | Alle tellingen van het gekozen bedrijf; opnieuw downloaden of aanpassen kan altijd. |
+| `/stock` | Wat er nu in huis is per toog, met de tijdlijn per product en het boeken van bewegingen die niet uit een telling of levering volgen. |
 | `/verkoop` | Kassarapport inlezen, de kassanamen koppelen aan producten en togen, en het verschil tussen verbruik en verkoop bekijken. |
 | `/beheer` | Producten met basisstock per locatie, locaties, leveranciers, de toegangscodes en de bedrijven. |
+
+## Stock die niet via een telling beweegt
+
+Drank die naar het Rode Kruis of de bussen gaat, breuk, personeel, een verhuis tussen togen: die
+boek je bij **Stock → "Drank uit de stock nemen of toevoegen"**, met een reden erbij. De redenen
+zelf staan in Beheer → Redenen.
+
+Wat er nu in huis zou moeten zijn, wordt daaruit afgeleid:
+
+```
+nu in huis = laatste telling
+           + wat er bij die telling geleverd is
+           + de bewegingen sinds die telling
+           − de verkoop van op of na de dag van die telling
+```
+
+Elk van die vier staat apart in de tabel, en de **tijdlijn** per product toont elke telling,
+levering, beweging en verkoopdag met de stand erna. Een telling zet de stand vast: vanaf dan begint
+de rekening opnieuw.
 
 ## Toegang
 

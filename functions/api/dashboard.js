@@ -6,7 +6,8 @@
  */
 import { json, handler, db, int, today, HttpError } from '../_lib/http.js';
 import { scopeFor, requireCompany, visibleCompanies } from '../_lib/access.js';
-import { orderPacks, receiptDiff } from '../_lib/order.js';
+import { orderPacks, receiptDiff, round2 } from '../_lib/order.js';
+import { huidigeStock } from '../_lib/stock.js';
 
 export const onRequestGet = handler(async ({ request, env, data }) => {
   const D = db(env);
@@ -110,6 +111,31 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
     warnings.push(`${zonderLeverancier.n} ${zonderLeverancier.n === 1 ? 'product staat' : 'producten staan'} zonder leverancier; die komen op een aparte bestelbon.`);
   }
 
+  // de stand van de stock, samengevat per locatie
+  const stock = await huidigeStock(D, companyId);
+  const perLocatie = new Map();
+  for (const r of stock) {
+    if (!perLocatie.has(r.location_id)) {
+      perLocatie.set(r.location_id, { location_id: r.location_id, location_name: r.location_name, producten: 0, onder_basis: 0, leeg: 0, counted_on: r.counted_on });
+    }
+    const vak = perLocatie.get(r.location_id);
+    vak.producten += 1;
+    if (r.base_qty !== null && r.nu < r.base_qty) vak.onder_basis += 1;
+    if (r.nu <= 0) vak.leeg += 1;
+    if (r.counted_on > vak.counted_on) vak.counted_on = r.counted_on;
+  }
+
+  const bewegingen = await D.prepare(
+    `SELECT m.id, m.qty, m.moved_on, m.note, m.created_by, l.name AS location_name,
+            p.name AS product_name, p.unit, r.name AS reason_name
+       FROM stock_moves m
+       JOIN locations l ON l.id = m.location_id
+       LEFT JOIN products p ON p.id = m.product_id
+       LEFT JOIN stock_reasons r ON r.id = m.reason_id
+      WHERE m.company_id = ?1
+      ORDER BY m.moved_on DESC, m.id DESC LIMIT 10`
+  ).bind(companyId).all();
+
   const counted = new Set((recent.results || []).map((c) => c.location_name));
   const missing = (locations.results || []).filter((l) => !counted.has(l.name));
 
@@ -120,6 +146,9 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
     counted_today: recent.results || [],
     not_counted_today: missing.map((l) => ({ id: l.id, name: l.name })),
     open_orders: openOrders.results || [],
+    stock: [...perLocatie.values()],
+    stock_totaal: round2(stock.reduce((a, r) => a + r.nu, 0)),
+    moves: bewegingen.results || [],
     to_order: [...suppliers.values()],
     differences: (afwijkingen.results || []).map((r) => ({ ...r, unit: r.unit || 'stuk', diff: receiptDiff(r.order_qty, r.received_qty) })),
     warnings,

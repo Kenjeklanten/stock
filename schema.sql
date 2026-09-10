@@ -115,6 +115,37 @@ ALTER TABLE count_lines ADD COLUMN received_qty   REAL;
 DROP TABLE IF EXISTS members;
 
 -- ---------------------------------------------------------------------------------------------
+-- Stock die niet via een telling of een levering beweegt: drank voor het Rode Kruis, voor de
+-- bussen, breuk, personeel, een verhuis tussen twee togen. Elke beweging draagt een reden, zodat
+-- achteraf te zien is waar de drank naartoe ging.
+
+CREATE TABLE IF NOT EXISTS stock_reasons (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name       TEXT    NOT NULL,
+  direction  TEXT    NOT NULL DEFAULT 'uit',   -- uit | in | beide
+  sort       INTEGER NOT NULL DEFAULT 0,
+  active     INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS stock_reasons_unique ON stock_reasons (company_id, lower(name));
+
+CREATE TABLE IF NOT EXISTS stock_moves (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id  INTEGER NOT NULL REFERENCES companies(id)  ON DELETE CASCADE,
+  location_id INTEGER NOT NULL REFERENCES locations(id)  ON DELETE CASCADE,
+  product_id  INTEGER NOT NULL REFERENCES products(id)   ON DELETE CASCADE,
+  reason_id   INTEGER REFERENCES stock_reasons(id) ON DELETE SET NULL,
+  qty         REAL    NOT NULL,                 -- positief = erbij, negatief = eruit
+  note        TEXT,
+  moved_on    TEXT    NOT NULL,                 -- YYYY-MM-DD
+  created_by  TEXT,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS stock_moves_plek ON stock_moves (location_id, product_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS stock_moves_dag  ON stock_moves (company_id, moved_on DESC);
+
+-- ---------------------------------------------------------------------------------------------
 -- Verkoop uit de kassa. Wat er verkocht is, naast wat er uit de stock verdwenen is: het verschil
 -- tussen die twee is wat er weggegeven, gemorst of gestolen is.
 --

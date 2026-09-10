@@ -4,7 +4,7 @@ import { api, toast, fmt, num, el, clear, qs, qsa, mountHeader, plural } from '.
 
 const state = {
   companyId: null, company: null, locations: [], suppliers: [], products: [], companies: [],
-  codes: [], settings: {}, tab: 'producten', canManage: true, superAdmin: true,
+  codes: [], reasons: [], settings: {}, tab: 'producten', canManage: true, superAdmin: true,
 };
 
 const input = (props) => el('input', { type: 'text', ...props });
@@ -14,6 +14,7 @@ async function refresh() {
   state.companies = data.companies || [];
   state.company = data.company || null;
   state.locations = data.locations || [];
+  state.reasons = data.reasons || [];
   state.suppliers = data.suppliers || [];
   state.products = data.products || [];
   state.settings = data.settings || {};
@@ -237,7 +238,7 @@ function crudTable({ title, endpoint, table, items, columns, newLabel, withCompa
     el('div', { class: 'card__head' }, [el('h2', { text: `${title} (${items.length})` })]),
     el('div', { class: 'table-wrap' }, [el('table', {}, [
       el('thead', {}, [el('tr', {}, [
-        el('th', { class: 'cell-move', text: '', title: 'Volgorde' }),
+        table ? el('th', { class: 'cell-move', text: '', title: 'Volgorde' }) : null,
         ...columns.map((c) => el('th', { text: c.label })),
         withActive ? el('th', { text: 'Actief' }) : null, el('th', { text: '' }),
       ])]),
@@ -249,15 +250,15 @@ function crudTable({ title, endpoint, table, items, columns, newLabel, withCompa
     const values = { ...item, active: item.active !== 0 };
     const save = el('button', { class: 'btn btn--sm', disabled: true, text: 'Bewaar' });
     const tr = el('tr', { dataset: { id: String(item.id) } }, columns.map((c) => {
-      const node = el('input', {
-        type: c.type || 'text',
-        value: values[c.k] === null || values[c.k] === undefined ? '' : String(values[c.k]),
-        'aria-label': `${c.label} ${item.name}`,
-      });
+      const huidig = values[c.k] === null || values[c.k] === undefined ? '' : String(values[c.k]);
+      const node = c.keuzes
+        ? el('select', { 'aria-label': `${c.label} ${item.name}` }, c.keuzes.map((k) => el('option', { value: k, text: k })))
+        : el('input', { type: c.type || 'text', value: huidig, 'aria-label': `${c.label} ${item.name}` });
+      if (c.keuzes) { node.value = huidig || c.keuzes[0]; node.addEventListener('change', () => { values[c.k] = node.value; save.disabled = false; }); }
       node.addEventListener('input', () => { values[c.k] = node.value; save.disabled = false; });
       return el('td', { class: c.narrow ? 'cell-narrow' : '' }, [node]);
     }));
-    tr.prepend(volgordeCel(tr, tbody, table));
+    if (table) tr.prepend(volgordeCel(tr, tbody, table));
     if (withActive) {
       const active = el('input', { type: 'checkbox', checked: values.active, class: 'check', 'aria-label': `Actief ${item.name}` });
       active.addEventListener('change', () => { values.active = active.checked; save.disabled = false; });
@@ -286,10 +287,15 @@ function crudTable({ title, endpoint, table, items, columns, newLabel, withCompa
     tr.append(el('td', {}, [el('div', { class: 'row' }, [save, del])]));
     tbody.append(tr);
   }
-  if (!items.length) tbody.append(el('tr', {}, [el('td', { colspan: String(columns.length + (withActive ? 3 : 2)), class: 'muted', text: 'Nog niets toegevoegd.' })]));
-  maakSleepbaar(tbody, table);
+  if (!items.length) tbody.append(el('tr', {}, [el('td', { colspan: String(columns.length + (withActive ? 2 : 1) + (table ? 1 : 0)), class: 'muted', text: 'Nog niets toegevoegd.' })]));
+  if (table) maakSleepbaar(tbody, table);
 
-  const fields = columns.map((c) => ({ c, node: el('input', { type: c.type || 'text', placeholder: c.label }) }));
+  const fields = columns.map((c) => ({
+    c,
+    node: c.keuzes
+      ? el('select', {}, c.keuzes.map((k) => el('option', { value: k, text: k })))
+      : el('input', { type: c.type || 'text', placeholder: c.label }),
+  }));
   const add = el('button', { class: 'btn', text: newLabel });
   add.addEventListener('click', async () => {
     const body = Object.fromEntries(fields.map(({ c, node }) => [c.k, node.value]));
@@ -307,6 +313,27 @@ function crudTable({ title, endpoint, table, items, columns, newLabel, withCompa
     el('div', { class: 'f-fixed' }, [add]),
   ]));
   return card;
+}
+
+/* ---------------- redenen voor een stockbeweging ---------------- */
+
+/**
+ * Waarom er drank uit de stock gaat of erbij komt: "Drank Rode Kruis", "Drank bussen", "Breuk".
+ * De richting bepaalt waar de reden verschijnt bij het boeken van een beweging.
+ */
+function renderReasons(panel) {
+  panel.append(
+    el('p', { class: 'page-intro small muted', text: 'Deze redenen kies je bij Stock → "Drank uit de stock nemen of toevoegen". Ze komen mee in de tijdlijn, zodat achteraf te zien is waar de drank naartoe ging.' }),
+    crudTable({
+      title: `Redenen van ${state.company ? state.company.name : '—'}`, endpoint: '/api/admin/reasons', table: null,
+      items: state.reasons, newLabel: 'Reden toevoegen',
+      columns: [
+        { k: 'name', label: 'Naam' },
+        { k: 'direction', label: 'Richting', type: 'text', narrow: true, keuzes: ['uit', 'in', 'beide'] },
+      ],
+    }),
+    el('p', { class: 'small muted', text: '"uit" = drank verlaat de stock (weggegeven, breuk), "in" = er komt drank bij (teruggebracht, gevonden), "beide" = allebei.' }),
+  );
 }
 
 /* ---------------- toegang ---------------- */
@@ -414,6 +441,7 @@ function renderTab() {
     title: `Leveranciers van ${state.company ? state.company.name : '—'}`, endpoint: '/api/admin/suppliers', table: 'suppliers',
     items: state.suppliers, newLabel: 'Leverancier toevoegen', columns: [{ k: 'name', label: 'Naam' }], withActive: false,
   }));
+  else if (state.tab === 'redenen') renderReasons(panel);
   else if (state.tab === 'toegang') renderAccess(panel);
   else if (state.tab === 'bedrijven') {
     panel.append(
