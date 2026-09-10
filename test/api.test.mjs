@@ -13,9 +13,6 @@ import * as companiesApi from '../functions/api/admin/companies.js';
 import * as locationsApi from '../functions/api/admin/locations.js';
 import * as suppliersApi from '../functions/api/admin/suppliers.js';
 import * as productsApi from '../functions/api/admin/products.js';
-import * as settingsApi from '../functions/api/admin/settings.js';
-import * as importApi from '../functions/api/admin/import.js';
-import * as exportApi from '../functions/api/admin/export.js';
 import * as catalogApi from '../functions/api/catalog.js';
 import * as countsApi from '../functions/api/counts.js';
 import * as countApi from '../functions/api/counts/[id].js';
@@ -38,12 +35,12 @@ const asJson = async (res) => JSON.parse(await res.text());
 async function seed(env, { name = 'STVV' } = {}) {
   const company = await asJson(await companiesApi.onRequestPost(ctx(env, {
     method: 'POST',
-    body: { name, address: 'Stayen 1, 3800 Sint-Truiden', vat: 'BE 0123.456.789', email: 'inkoop@stvv.example', order_footer: 'Leveren voor 10u.' },
+    body: { name },
   })));
   const co = company.id;
   const loc = await asJson(await locationsApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: co, name: 'Bar tribune 1' } })));
   const loc2 = await asJson(await locationsApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: co, name: 'Magazijn' } })));
-  const sup = await asJson(await suppliersApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: co, name: 'Drankencentrale', customer_ref: 'KL-42' } })));
+  const sup = await asJson(await suppliersApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: co, name: 'Drankencentrale' } })));
   const cola = await asJson(await productsApi.onRequestPost(ctx(env, {
     method: 'POST',
     body: { company_id: co, name: 'Cola 33cl', unit: 'blik', pack_size: 24, pack_label: 'bak van 24', supplier_id: sup.id, base: { [loc.id]: 48, [loc2.id]: 24 } },
@@ -106,7 +103,6 @@ test('telling opslaan berekent de bestelling en groepeert per leverancier', asyn
   assert.equal(detail.lines.length, 3, 'elke product-regel wordt bewaard, ook niet-getelde');
   assert.equal(detail.orders.length, 1, 'één leverancier met een bestelling');
   assert.equal(detail.orders[0].supplier_name, 'Drankencentrale');
-  assert.equal(detail.orders[0].customer_ref, 'KL-42');
   assert.deepEqual(detail.orders[0].lines.map((l) => [l.product_name, l.order_qty]), [['Cola 33cl', 24]]);
 
   const list = await asJson(await countsApi.onRequestGet(ctx(env, { url: 'https://x/api/counts' })));
@@ -156,8 +152,9 @@ test('CSV-export van de bestelling', async () => {
   assert.match(res.headers.get('content-disposition'), /bestelling-stvv-bar-tribune-1-2026-09-09\.csv/);
   const rows = parseCsv(body);
   assert.equal(rows.length, 2, 'kop + enkel de te bestellen regel');
-  assert.deepEqual(rows[1].slice(0, 3), ['Drankencentrale', 'KL-42', 'Cola 33cl']);
-  assert.equal(rows[1][10], '24', 'kolom "Te bestellen"');
+  assert.deepEqual(rows[1].slice(0, 2), ['Drankencentrale', 'Cola 33cl']);
+  assert.equal(rows[0][9], 'Te bestellen');
+  assert.equal(rows[1][9], '24', 'kolom "Te bestellen"');
   const bytes = new Uint8Array(await (await csvApi.onRequestGet(ctx(env, { params: { id: String(id) }, url: 'https://x/api/counts/1/csv' }))).arrayBuffer());
   assert.deepEqual([...bytes.slice(0, 3)], [0xef, 0xbb, 0xbf], 'BOM zodat Excel de accenten juist leest');
 
@@ -189,45 +186,6 @@ test('bestelbon-PDF is een geldig PDF-bestand', async () => {
   offsets.forEach((offset, i) => assert.match(text.slice(offset, offset + 12), new RegExp(`^${i + 1} 0 obj`)));
 });
 
-test('CSV-import maakt producten, locaties en basisstock aan binnen één bedrijf', async () => {
-  const env = newEnv();
-  const { id: company } = await asJson(await companiesApi.onRequestPost(ctx(env, { method: 'POST', body: { name: 'Bistro het Vinne' } })));
-  const csv = [
-    'Product;Eenheid;Verpakking;Leverancier;Bar;Keuken',
-    'Cola 33cl;blik;24;Drankencentrale;48;12',
-    'Koffiebonen;kg;1;Koffie NV;6;',
-    'Fout product;stuk;1;;abc;3',
-  ].join('\n');
-
-  const preview = await asJson(await importApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: company, csv, mode: 'preview' } })));
-  assert.equal(preview.preview, true);
-  assert.equal(preview.report.products_new, 3);
-  assert.deepEqual(preview.report.locations_new, ['Bar', 'Keuken']);
-  assert.deepEqual(preview.report.suppliers_new, ['Drankencentrale', 'Koffie NV']);
-  assert.equal(preview.report.warnings.length, 1, 'niet-numerieke basisstock geeft een waarschuwing');
-
-  const applied = await asJson(await importApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: company, csv, mode: 'apply' } })));
-  assert.equal(applied.preview, false);
-
-  const cat = await asJson(await catalogApi.onRequestGet(ctx(env, { url: `https://x/api/catalog?company_id=${company}&all=1` })));
-  assert.equal(cat.products.length, 3);
-  assert.deepEqual(cat.locations.map((l) => l.name), ['Bar', 'Keuken']);
-  assert.equal(preview.report.company, 'Bistro het Vinne');
-  const cola = cat.products.find((p) => p.name === 'Cola 33cl');
-  assert.equal(cola.pack_size, 24);
-  assert.equal(Object.keys(cola.base).length, 2);
-
-  // opnieuw importeren werkt bij: geen dubbele producten
-  const again = await asJson(await importApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: company, csv, mode: 'apply' } })));
-  assert.equal(again.report.products_new, 0);
-  assert.equal(again.report.products_updated, 3);
-
-  const exported = await (await exportApi.onRequestGet(ctx(env, { url: `https://x/api/admin/export?company_id=${company}` }))).text();
-  const rows = parseCsv(exported);
-  assert.deepEqual(rows[0].slice(0, 5), ['Product', 'Eenheid', 'Verpakking', 'Verpakkingsnaam', 'Leverancier']);
-  assert.equal(rows.length, 4);
-});
-
 test('producten en locaties met historiek worden gearchiveerd, niet verwijderd', async () => {
   const env = newEnv();
   const ids = await seed(env);
@@ -247,17 +205,15 @@ test('producten en locaties met historiek worden gearchiveerd, niet verwijderd',
   assert.equal(unused.archived, undefined);
 });
 
-test('beheer is afgeschermd en instellingen worden bewaard', async () => {
+test('beheren kan niet met een code die enkel mag tellen', async () => {
   const env = newEnv();
-  // ADMIN_EMAILS is ingevuld en dit adres staat er niet bij: geen beheerrechten
-  const denied = await locationsApi.onRequestPost(ctx(env, {
-    method: 'POST', body: { company_id: 1, name: 'X' },
-    user: { email: 'medewerker@jeconcept.be', admin: false, admin_listed: false, admin_list_set: true, protected: true },
+  const ids = await seed(env);
+  const teller = { email: '', protected: false, code: { label: 'Tellen', role: 'teller', company_id: ids.co } };
+  const geweigerd = await locationsApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { company_id: ids.co, name: 'Toog 9' }, user: teller,
   }));
-  assert.equal(denied.status, 403);
-
-  const saved = await asJson(await settingsApi.onRequestPost(ctx(env, { method: 'POST', body: { csv_delimiter: ',' } })));
-  assert.equal(saved.settings.csv_delimiter, ',');
+  assert.equal(geweigerd.status, 403);
+  assert.match((await asJson(geweigerd)).error, /enkel om te tellen/);
 });
 
 test('foutmeldingen zijn leesbaar', async () => {
@@ -316,9 +272,9 @@ test('tellen gebeurt in volle pakken en losse stuks', async () => {
 
   const csv = await (await csvApi.onRequestGet(ctx(env, { params: { id: String(id) }, url: 'https://x/api/counts/1/csv?scope=all' }))).text();
   const rows = parseCsv(csv);
-  assert.deepEqual(rows[0].slice(6, 9), ['Geteld volle pakken', 'Geteld losse stuks', 'Geteld totaal']);
-  const colaRow = rows.find((r) => r[2] === 'Cola 33cl');
-  assert.deepEqual(colaRow.slice(6, 9), ['1', '6', '30']);
+  assert.deepEqual(rows[0].slice(5, 8), ['Geteld volle pakken', 'Geteld losse stuks', 'Geteld totaal']);
+  const colaRow = rows.find((r) => r[1] === 'Cola 33cl');
+  assert.deepEqual(colaRow.slice(5, 8), ['1', '6', '30']);
 
   const pdf = Buffer.from(await (await pdfApi.onRequestGet(ctx(env, { params: { id: String(id) }, url: 'https://x/api/counts/1/pdf' }))).arrayBuffer()).toString('latin1');
   assert.match(pdf, /1 pak \+ 6/, 'de bestelbon toont de splitsing');
@@ -407,43 +363,6 @@ test('de bestellijst komt eruit als Excel in de vorm van de bestaande lijst', as
 });
 
 
-test('xlsx-import: getallen in bakken worden omgerekend naar stuks', async () => {
-  const env = newEnv();
-  const ids = await seed(env);   // Cola 33cl zit in een bak van 24
-  const sheets = [{
-    name: 'Drankencentrale',
-    locations: ['Bar tribune 1'],
-    products: [
-      { name: 'Cola 33cl', values: { 'Bar tribune 1': 3 } },
-      { name: 'Rietjes', values: { 'Bar tribune 1': 5 } },   // nieuw product, verpakking 1
-    ],
-  }];
-  const res = await asJson(await importApi.onRequestPost(ctx(env, {
-    method: 'POST', body: { company_id: ids.co, sheets, values: 'base_packs', mode: 'apply' },
-  })));
-  assert.equal(res.preview, false);
-  assert.match(res.report.warnings.join(' '), /verpakking op 1/);
-
-  const cat = await asJson(await catalogApi.onRequestGet(ctx(env, { url: `https://x/api/catalog?company_id=${ids.co}&location_id=${ids.loc}` })));
-  const cola = cat.products.find((p) => p.name === 'Cola 33cl');
-  assert.equal(cola.base_qty, 72, '3 bakken × 24 = 72 blik');
-  const rietjes = cat.products.find((p) => p.name === 'Rietjes');
-  assert.equal(rietjes.base_qty, 5, 'verpakking 1 → het getal blijft staan');
-
-  // de verpakking van een bestaand product wordt niet overschreven door de import
-  assert.equal(cola.pack_size, 24);
-
-  // een product dat al onder een andere leverancier staat, geeft een waarschuwing
-  const dubbel = await asJson(await importApi.onRequestPost(ctx(env, {
-    method: 'POST', mode: 'preview',
-    body: { company_id: ids.co, mode: 'preview', values: 'base_packs', sheets: [{
-      name: 'Andere leverancier', locations: ['Bar tribune 1'],
-      products: [{ name: 'Cola 33cl', values: { 'Bar tribune 1': 1 } }],
-    }] },
-  })));
-  assert.match(dubbel.report.warnings.join(' '), /staat al onder/);
-});
-
 test('ontvangstcontrole: geleverde aantallen en het verschil met de bestelling', async () => {
   const env = newEnv();
   const ids = await seed(env);
@@ -491,46 +410,6 @@ test('ontvangstcontrole: geleverde aantallen en het verschil met de bestelling',
   const csv = await (await csvApi.onRequestGet(ctx(env, { params: { id: String(id) }, url: 'https://x/api/counts/1/csv' }))).text();
   assert.match(csv, /Geleverd/);
   assert.match(csv, /-24/);
-});
-
-test('toegangscode bepaalt mee wat je mag zien en doen', async () => {
-  const env = newEnv();
-  const stvv = await seed(env);
-  const bistro = await asJson(await companiesApi.onRequestPost(ctx(env, { method: 'POST', body: { name: 'Bistro het Vinne' } })));
-
-  const teller = { email: '', admin: true, admin_listed: false, admin_list_set: false, protected: false,
-    code: { label: 'Tellen STVV', role: 'teller', company_id: stvv.co, company_name: 'STVV' } };
-  const alles = { email: '', admin: true, admin_listed: false, admin_list_set: false, protected: false,
-    code: { label: 'Volledige toegang', role: 'beheerder', company_id: null } };
-
-  // de tellercode ziet enkel STVV
-  const beperkt = await asJson(await catalogApi.onRequestGet(ctx(env, { url: 'https://x/api/catalog', user: teller })));
-  assert.deepEqual(beperkt.companies.map((c) => c.name), ['STVV']);
-  assert.equal(beperkt.user.can_manage, false);
-  assert.deepEqual(beperkt.user.manageable, []);
-  assert.equal(beperkt.user.code.label, 'Tellen STVV');
-
-  // en komt niet aan het andere bedrijf
-  const verboden = await catalogApi.onRequestGet(ctx(env, { url: `https://x/api/catalog?company_id=${bistro.id}`, user: teller }));
-  assert.equal(verboden.status, 403);
-
-  // tellen mag wel
-  const telling = await countsApi.onRequestPost(ctx(env, {
-    method: 'POST', user: teller,
-    body: { location_id: stvv.loc, lines: [{ product_id: stvv.cola, packs: 1 }] },
-  }));
-  assert.equal(telling.status, 201);
-
-  // beheren niet
-  const nieuw = await locationsApi.onRequestPost(ctx(env, {
-    method: 'POST', user: teller, body: { company_id: stvv.co, name: 'Toog 9' },
-  }));
-  assert.equal(nieuw.status, 403);
-
-  // de volledige code mag alles
-  const volledig = await asJson(await catalogApi.onRequestGet(ctx(env, { url: 'https://x/api/catalog', user: alles })));
-  assert.equal(volledig.companies.length, 2);
-  assert.equal(volledig.user.manageable, 'all');
 });
 
 test('toegangscodes beheren: de laatste volledige code blijft staan', async () => {

@@ -31,28 +31,42 @@ Voorbeeld: basisstock 48 flessen, bak van 24, geteld 1 pak + 6 los = 30 → teko
 
 | Pagina | Waarvoor |
 |---|---|
-| `/` | Bedrijf en locatie kiezen, per product de volle pakken en losse stuks invullen. Toont meteen wat besteld wordt. Zoeken, groeperen per categorie of leverancier, "enkel niet-getelde tonen". Het ingevulde blijft lokaal bewaard (klad), dus een verbroken verbinding kost niets. |
-| `/bestelling?id=…` | Het resultaat: bestelregels per leverancier, met knoppen voor de bestellijst in Excel (één telling of de hele dag), de bestelbon in PDF, CSV, het volledige telblad, en "markeer als besteld". |
+| `/dashboard` | Overzicht van de dag: welke locaties geteld zijn, wat er vandaag te bestellen is per leverancier, welke leveringen nog nagekeken moeten worden. |
+| `/` | Bedrijf en locatie kiezen, per product de volle pakken en losse stuks invullen. Toont meteen wat besteld wordt. Werkt ook zonder verbinding. |
+| `/bestelling?id=…` | Het resultaat: bestelregels per leverancier, met de bestellijst in Excel (één telling of de hele dag), de bestelbon in PDF, CSV en "markeer als besteld". |
+| `/ontvangst?id=…` | Levering inboeken: wat er effectief geleverd is, met het verschil tegenover de bestelling. |
 | `/historiek` | Alle tellingen van het gekozen bedrijf; opnieuw downloaden of aanpassen kan altijd. |
-| `/beheer` | Producten met basisstock per locatie, locaties, leveranciers, CSV-import/export, en de bedrijven zelf (naam, adres, BTW, voettekst — die komen op de bestelbon). |
+| `/verkoop` | Kassarapport inlezen, de kassanamen koppelen aan producten en togen, en het verschil tussen verbruik en verkoop bekijken. |
+| `/beheer` | Producten met basisstock per locatie, locaties, leveranciers, de toegangscodes en de bedrijven. |
+
+## Toegang
+
+Alles loopt via **cijfercodes**; er zijn geen gebruikers of e-mailadressen. Elke code draagt haar
+eigen rechten (Beheer → Toegang):
+
+| | rol `teller` | rol `beheerder` |
+|---|---|---|
+| **zonder bedrijf** | alle bedrijven zien en tellen | alles, ook bedrijven en codes beheren |
+| **met een bedrijf** | dat bedrijf zien en tellen | dat bedrijf zien, tellen en beheren |
+
+De browser onthoudt een ingevoerde code dertig dagen, via een ondertekende cookie die de code zelf
+niet bevat. Er blijft altijd minstens één code met volledige toegang bestaan; sluit je jezelf toch
+buiten, zet dan `APP_PIN` als variabele op het Pages-project.
+
+Staat de tool achter Cloudflare Access, dan is dat een tweede slot ervoor — Access bepaalt wie
+binnen mag, de code bepaalt wat je mag.
+
+## De volgorde van lijsten
+
+Locaties, leveranciers, producten en bedrijven staan in de volgorde waarin ze op het telformulier
+en de bestelbon verschijnen. Die volgorde stel je in door de rijen te **verslepen** (of met de
+pijltjes ernaast, voor op een tablet of met het toetsenbord). Er is geen volgordekolom meer.
 
 ## Producten inladen
 
-Het snelst gaat het via **Beheer → Import / export**, per bedrijf. Kolommen (hoofdletters en accenten
-maken niet uit):
-
-```
-Product;Artikelnummer;Eenheid;Verpakking;Verpakkingsnaam;Categorie;Leverancier;Bar tribune 1;Magazijn
-Pils 25cl;P25;fles;24;bak van 24;Bier;Drankencentrale;48;144
-Chips paprika;CP;zak;1;;Snacks;Groothandel;20;
-```
-
-* `Verpakking` is het aantal stuks in één volle verpakking — dat is ook de besteleenheid.
-* Elke kolom **na** `Leverancier` is een locatie; de waarde is de basisstock van dat product daar.
-* Een **lege cel** betekent: dit product hoort niet in die locatie en verschijnt daar niet op het telformulier.
-* Onbekende locaties en leveranciers worden aangemaakt **binnen het gekozen bedrijf**.
-* Eerst *Controleren* (toont wat er zou gebeuren), daarna pas *Importeren*.
-* De export gebruikt exact dezelfde kolommen: exporteren → aanpassen in Excel → opnieuw importeren.
+De catalogus wordt rechtstreeks in de databank gezet, niet via een importscherm: `seed.sql` bevat de
+producten, locaties, leveranciers en de basisstock per locatie van een bedrijf. Voor een nieuw
+bedrijf komt daar een gelijkaardig bestand bij, dat eenmalig uitgevoerd wordt op de databank.
 
 ## De bestellijst in Excel
 
@@ -62,8 +76,6 @@ dezelfde vorm als de lijst die vandaag met de hand wordt ingevuld:
 * **één tabblad per leverancier** (tabbladnaam = naam van de leverancier);
 * rij 1 `Bestelbon:` met de datum; rij 3 de **locaties als kolommen** met achteraan `Totaal`;
   rij 4 `Artikel`; daaronder per product het **te bestellen aantal per locatie**;
-* per categorie een leeg rij en een nieuwe kopregel met de categorie in kolom A (zoals `PET` en
-  `EXTRA` in de bestaande lijst);
 * de kolom `Totaal` is een echte `=SUM(...)`-formule, dus je kan in Excel gerust bijsturen;
 * een tabblad toont enkel de locaties waar producten van die leverancier geteld worden — een
   leverancier die alleen voor het hele huis levert, krijgt dus één kolom;
@@ -103,13 +115,15 @@ build.py               app/ → dist/ met een inhoudshash op CSS en JS
 app/
   css/tokens.css       het volledige design-system: kleuren, fonts, ruimte, vorm
   css/app.css          de componenten van de tool (gebruikt enkel tokens)
-  js/                  vanilla modules per scherm + xlsx-read.js (xlsx inlezen in de browser)
+  js/                  vanilla modules per scherm + xlsx-read.js (kassabestand inlezen)
+  sw.js                service worker: de tool blijft werken zonder bereik
 functions/
-  _middleware.js       Cloudflare Access-JWT controleren, beheerrechten bepalen
-  _lib/                rekenregel, D1-queries, CSV, PDF-schrijver, XLSX-schrijver, bestellijst
-  api/                 /api/session, /api/catalog, /api/counts…, /api/export/xlsx, /api/admin/…
+  _middleware.js       toegangscode controleren, en de Cloudflare Access-JWT als die er is
+  _lib/                rekenregel, D1-queries, CSV, PDF-schrijver, XLSX-schrijver, bestellijst, verkoop
+  api/                 /api/catalog, /api/counts…, /api/sales…, /api/export/xlsx, /api/admin/…
 scripts/dev-db.mjs     schema (en seed) op de lokale D1 zetten
-test/                  node --test: API, bestelbon, bestellijst, import, scheiding tussen bedrijven
+scripts/icons.py       de app-iconen tekenen
+test/                  node --test: rekenregel, API, bestelbon, bestellijst, rechten, verkoop
 ```
 
 ## Lokaal draaien
@@ -138,7 +152,7 @@ Zet in deze repository de **GitHub secrets**:
 | `CLOUDFLARE_ACCOUNT_ID` | Account-ID uit het Cloudflare-dashboard |
 | `ACCESS_TEAM_DOMAIN` | bv. `jeconcept.cloudflareaccess.com` (zie hieronder) |
 | `ACCESS_AUD` | Application Audience-tag van de Access-applicatie |
-| `ADMIN_EMAILS` | optioneel: wie mag beheren |
+| `APP_PIN` | optioneel: een noodcode met volledige toegang |
 
 Staat de database nog in een oudere vorm (versie 1, van vóór de bedrijven), dan bouwt de deploy ze
 opnieuw op — maar alleen als er nog geen producten of tellingen in staan. Zit er wel data in, dan
@@ -152,9 +166,8 @@ stopt de deploy met een melding in plaats van iets te wissen.
 3. Policy: *Allow* → *Emails* met de adressen van wie mag tellen.
 4. Noteer bij de applicatie de **Application Audience (AUD) tag** en je **team domain**
    (`<team>.cloudflareaccess.com`).
-5. Zet die als GitHub secrets: `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN` en optioneel `ADMIN_EMAILS`
-   (komma-gescheiden; wie daar niet in staat mag tellen maar niet beheren — laat je het leeg, dan
-   mag iedereen met toegang ook beheren). De volgende deploy zet ze op het Pages-project.
+5. Zet die als GitHub secrets: `ACCESS_AUD` en `ACCESS_TEAM_DOMAIN`. De volgende deploy zet ze op
+   het Pages-project. Wie wat mag binnen de tool, blijft een zaak van de toegangscodes.
 
 Zolang `ACCESS_TEAM_DOMAIN` niet gezet is, controleert de tool de Access-sessie niet zelf en toont
 ze bovenaan een waarschuwing. Access aan de rand blijft dan de enige beveiliging.
@@ -171,10 +184,19 @@ daarna ook toe aan de Access-applicatie.
 | `DB` (D1-binding) | de database; wordt automatisch door de workflow gezet |
 | `ACCESS_TEAM_DOMAIN` | bv. `jeconcept.cloudflareaccess.com` — leeg = geen eigen JWT-controle |
 | `ACCESS_AUD` | Application Audience-tag van de Access-applicatie |
-| `ADMIN_EMAILS` | wie het beheerscherm mag gebruiken; leeg = iedereen met toegang |
+| `APP_PIN` | noodcode met volledige toegang, voor als je jezelf buitensluit |
 
 ## Back-up
 
-De database staat in D1. Een export van de catalogus haal je per bedrijf uit **Beheer →
-Import / export**; tellingen en bestellingen download je per stuk als CSV of PDF. Een volledige
-back-up maak je met `npx wrangler d1 export besteltool --remote --output=besteltool.sql`.
+Elke maandagochtend zet `.github/workflows/backup.yml` een volledige export van de databank in een
+R2-bucket: één bestand per week plus `laatste.sql`. Het API-token heeft daarvoor `R2: Edit` nodig
+naast de rechten voor Pages en D1.
+
+Met de hand kan het ook:
+
+```bash
+npx wrangler d1 export besteltool --remote --output=besteltool.sql   # back-up
+npx wrangler d1 execute besteltool --remote --file=besteltool.sql    # terugzetten
+```
+
+Tellingen en bestellingen download je daarnaast per stuk als CSV, PDF of Excel.

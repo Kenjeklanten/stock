@@ -18,8 +18,8 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
     args.push(companyId);
     where.push(`c.company_id = ?${args.length}`);
   } else if (!scope.viewAll) {
-    // zonder gekozen bedrijf: enkel de bedrijven waar deze persoon bij hoort
-    const ids = [...scope.roles.keys()];
+    // zonder gekozen bedrijf: enkel de bedrijven waar deze code bij mag
+    const ids = [...scope.companies];
     if (!ids.length) return json({ counts: [] });
     where.push(`c.company_id IN (${ids.map((id) => Number(id)).join(', ')})`);
   }

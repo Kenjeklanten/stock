@@ -9,7 +9,9 @@
  * Variabelen (Cloudflare Pages → Settings → Variables and secrets):
  *   ACCESS_TEAM_DOMAIN  bv. "jeconcept.cloudflareaccess.com"   → zonder deze variabele draait de tool open (enkel voor lokaal testen)
  *   ACCESS_AUD          Application Audience (AUD) tag van de Access-applicatie
- *   ADMIN_EMAILS        komma-gescheiden lijst; leeg = iedereen met toegang mag beheren
+ *
+ * Access zegt enkel wíé er binnenkomt; wat die persoon mag, hangt af van de toegangscode
+ * (zie _lib/pin.js en _lib/access.js).
  */
 import { json } from './_lib/http.js';
 import { activeCodes, sessionCode } from './_lib/pin.js';
@@ -68,17 +70,6 @@ function cookie(request, name) {
 }
 
 /**
- * ADMIN_EMAILS bepaalt de hoofdbeheerders: die mogen overal aan, ook bedrijven beheren.
- * Staat de lijst leeg, dan mag iedereen met toegang alles — tenzij de tabel `members`
- * ingevuld is; dat wordt per aanvraag bekeken in _lib/access.js.
- */
-const adminFlags = (email, env) => {
-  const list = String(env.ADMIN_EMAILS || '').toLowerCase().split(/[,\s]+/).filter(Boolean);
-  const listed = list.includes(String(email || '').toLowerCase());
-  return { admin: list.length === 0 || listed, admin_listed: listed, admin_list_set: list.length > 0 };
-};
-
-/**
  * De toegangscode zit vóór de API. De pagina's zelf laden wel, maar tonen zonder code niets:
  * elke aanvraag naar /api/ geeft 401 met code 'pin', waarna het scherm om de cijfers vraagt.
  *
@@ -106,7 +97,7 @@ export async function onRequest(context) {
     if (gate) return gate;
     data.user = {
       email: request.headers.get('cf-access-authenticated-user-email') || '',
-      admin: true, admin_listed: false, admin_list_set: false, protected: false, code: code || null,
+      protected: false, code: code || null,
     };
     return next();
   }
@@ -132,7 +123,6 @@ export async function onRequest(context) {
   const { gate, code } = await pinGate(request, env, url);
   if (gate) return gate;
 
-  const email = payload.email || payload.common_name || '';
-  data.user = { email, ...adminFlags(email, env), protected: true, code: code || null };
+  data.user = { email: payload.email || payload.common_name || '', protected: true, code: code || null };
   return next();
 }

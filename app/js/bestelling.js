@@ -95,8 +95,6 @@ function supplierCard(group) {
   return el('section', { class: 'card' }, [
     el('div', { class: 'card__head' }, [
       el('h2', { text: group.supplier_name }),
-      group.customer_ref ? el('span', { class: 'tag', text: `klantnr. ${group.customer_ref}` }) : null,
-      group.supplier_email ? el('span', { class: 'muted small', text: group.supplier_email }) : null,
       el('span', { class: 'spacer' }),
       el('a', { class: 'btn btn--sm btn--ghost no-print', href: `/api/counts/${data.count.id}/pdf?supplier=${group.supplier_id ?? 0}`, target: '_blank', rel: 'noopener', text: 'PDF' }),
       el('a', { class: 'btn btn--sm btn--ghost no-print', href: `/api/counts/${data.count.id}/csv?supplier=${group.supplier_id ?? 0}`, text: 'CSV' }),

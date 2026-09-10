@@ -76,7 +76,6 @@ jobs:
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ACCESS_TEAM_DOMAIN: ${{ secrets.ACCESS_TEAM_DOMAIN }}
           ACCESS_AUD: ${{ secrets.ACCESS_AUD }}
-          ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
         run: python3 .github/scripts/cloudflare.py
 
       - name: Eigen domein koppelen (idempotent)

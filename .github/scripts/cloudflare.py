@@ -122,7 +122,7 @@ print(f"{applied} schema-statements uitgevoerd, {skipped} migratie(s) waren al g
 
 # 4. Binding en variabelen op het Pages-project ---------------------------------
 env_vars = {}
-for name in ("ACCESS_TEAM_DOMAIN", "ACCESS_AUD", "ADMIN_EMAILS"):
+for name in ("ACCESS_TEAM_DOMAIN", "ACCESS_AUD", "APP_PIN"):
     value = os.environ.get(name, "").strip()
     if value:
         env_vars[name] = {"type": "plain_text", "value": value}

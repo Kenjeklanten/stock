@@ -33,9 +33,6 @@ function header(doc, { count, group, totalGroups, index }) {
   let y = TOP;
   doc.fill(INK).text(count.company_name || 'Besteltool', M, y, 17, { bold: true });
   doc.fill(MUTED);
-  if (count.company_address) doc.text(count.company_address, M, y - 14, 8.5);
-  const vat = [count.company_vat && `BTW ${count.company_vat}`, count.company_email].filter(Boolean).join('  ·  ');
-  if (vat) doc.text(vat, M, y - 25, 8.5);
 
   doc.fill(INK).text('BESTELBON', A4.w - M, y, 15, { bold: true, align: 'right' });
   doc.fill(MUTED).text(`nr. ${count.id}${totalGroups > 1 ? `-${index + 1}` : ''}  ·  ${dateNl(count.counted_on)}`, A4.w - M, y - 14, 9, { align: 'right' });
@@ -52,8 +49,7 @@ function header(doc, { count, group, totalGroups, index }) {
   pair('Leverancier', group.supplier_name, M, y);
   pair('Locatie', count.location_name, col2, y);
   y -= 32;
-  pair('Klantnummer', group.customer_ref || '—', M, y);
-  pair('Telling van', `${dateNl(count.counted_on)}${count.created_by ? ` · ${count.created_by}` : ''}`, col2, y);
+  pair('Telling van', `${dateNl(count.counted_on)}${count.created_by ? ` · ${count.created_by}` : ''}`, M, y);
   y -= 34;
 
   if (count.note) {
@@ -102,7 +98,7 @@ function row(doc, y, line, zebra) {
 
 export function buildOrderPdf({ count, groups }) {
   const doc = new Pdf(A4);
-  const list = groups.length ? groups : [{ supplier_name: 'Geen bestelling', customer_ref: '', lines: [] }];
+  const list = groups.length ? groups : [{ supplier_name: 'Geen bestelling', lines: [] }];
 
   list.forEach((group, index) => {
     if (index > 0) doc.newPage();
@@ -131,12 +127,9 @@ export function buildOrderPdf({ count, groups }) {
     if (!group.lines.length) doc.fill(MUTED).text('Alle producten zijn op basisstock — er hoeft niets besteld te worden.', M, y - 16, 9.5);
   });
 
-  const footerText = count.company_footer || '';
   doc.eachPage((page, total) => {
     doc.stroke(RULE).line(M, BOTTOM - 6, A4.w - M, BOTTOM - 6, 0.6);
-    doc.fill(MUTED);
-    if (footerText) doc.text(ellipsis(footerText, 8.5, false, A4.w - 2 * M - 90), M, BOTTOM - 20, 8.5);
-    doc.text(`pagina ${page} van ${total}`, A4.w - M, BOTTOM - 20, 8.5, { align: 'right' });
+    doc.fill(MUTED).text(`pagina ${page} van ${total}`, A4.w - M, BOTTOM - 20, 8.5, { align: 'right' });
   });
 
   return doc.build();

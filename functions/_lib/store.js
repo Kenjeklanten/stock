@@ -4,9 +4,7 @@ import { orderQty, orderPacks, shortage, countedTotal, receiptDiff, filled } fro
 /** Volledige telling + bestelregels, gegroepeerd per leverancier. */
 export async function loadCount(D, id) {
   const count = await D.prepare(
-    `SELECT c.*, l.name AS location_name,
-            co.name AS company_name, co.address AS company_address, co.vat AS company_vat,
-            co.email AS company_email, co.order_footer AS company_footer
+    `SELECT c.*, l.name AS location_name, co.name AS company_name
        FROM counts c
        JOIN locations l  ON l.id = c.location_id
        JOIN companies co ON co.id = c.company_id
@@ -18,8 +16,7 @@ export async function loadCount(D, id) {
     `SELECT cl.product_id, cl.product_name, cl.counted_qty, cl.counted_packs, cl.counted_loose,
             cl.base_qty, cl.pack_size, cl.order_qty,
             cl.received_packs, cl.received_loose, cl.received_qty,
-            p.unit, p.pack_label, p.supplier_id, s.name AS supplier_name,
-            s.email AS supplier_email, s.customer_ref, p.sort
+            p.unit, p.pack_label, p.supplier_id, s.name AS supplier_name, p.sort
        FROM count_lines cl
        LEFT JOIN products  p ON p.id = cl.product_id
        LEFT JOIN suppliers s ON s.id = p.supplier_id
@@ -55,8 +52,6 @@ export function groupBySupplier(lines, supplierFilter = null) {
       groups.set(key, {
         supplier_id: line.supplier_id ?? null,
         supplier_name: line.supplier_name || 'Zonder leverancier',
-        supplier_email: line.supplier_email || '',
-        customer_ref: line.customer_ref || '',
         lines: [],
       });
     }

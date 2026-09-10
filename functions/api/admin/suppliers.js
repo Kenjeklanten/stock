@@ -17,8 +17,8 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
   requireCompany(await guard(env, data), companyId, { manage: true });
   if (!name) throw new HttpError('Geef de leverancier een naam.');
   try {
-    const res = await db(env).prepare('INSERT INTO suppliers (company_id, name, email, customer_ref, sort, active) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
-      .bind(companyId, name, text(input.email, 160), text(input.customer_ref, 60), int(input.sort, 0), input.active === false ? 0 : 1).run();
+    const res = await db(env).prepare('INSERT INTO suppliers (company_id, name, sort) VALUES (?1, ?2, ?3)')
+      .bind(companyId, name, int(input.sort, 0)).run();
     return json({ id: res.meta.last_row_id }, 201);
   } catch (err) {
     if (String(err.message).includes('UNIQUE')) throw new HttpError('Dit bedrijf heeft al een leverancier met die naam.', 409);
@@ -32,9 +32,8 @@ export const onRequestPut = handler(async ({ request, env, data }) => {
   const id = int(input.id, null);
   if (!id) throw new HttpError('Ontbrekend nummer.');
   await requireRowCompany(env, data, 'suppliers', id);
-  const res = await db(env).prepare(
-    'UPDATE suppliers SET name = ?2, email = ?3, customer_ref = ?4, sort = ?5, active = ?6 WHERE id = ?1'
-  ).bind(id, text(input.name, 80), text(input.email, 160), text(input.customer_ref, 60), int(input.sort, 0), input.active === false ? 0 : 1).run();
+  const res = await db(env).prepare('UPDATE suppliers SET name = ?2, sort = ?3 WHERE id = ?1')
+    .bind(id, text(input.name, 80), int(input.sort, 0)).run();
   if (!res.meta.changes) throw new HttpError('Leverancier niet gevonden.', 404);
   return json({ ok: true });
 });
@@ -44,11 +43,11 @@ export const onRequestDelete = handler(async ({ request, env, data }) => {
   const id = int(new URL(request.url).searchParams.get('id'), null);
   if (!id) throw new HttpError('Ontbrekend nummer.');
   await requireRowCompany(env, data, 'suppliers', id);
+  // De producten van deze leverancier blijven bestaan; ze komen dan onder "Zonder leverancier".
   const used = await D.prepare('SELECT COUNT(*) AS n FROM products WHERE supplier_id = ?1').bind(id).first();
-  if (used && used.n > 0) {
-    await D.prepare('UPDATE suppliers SET active = 0 WHERE id = ?1').bind(id).run();
-    return json({ ok: true, archived: true, message: `Leverancier is op non-actief gezet (${used.n} producten verwijzen ernaar).` });
-  }
   await D.prepare('DELETE FROM suppliers WHERE id = ?1').bind(id).run();
+  if (used && used.n > 0) {
+    return json({ ok: true, message: `Leverancier verwijderd; ${used.n} producten staan nu zonder leverancier.` });
+  }
   return json({ ok: true });
 });

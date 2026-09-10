@@ -2,9 +2,9 @@
 -- database van een nieuwe omgeving. Locaties, leveranciers en producten zijn overgenomen uit
 -- de bestaande bestellijst; de basisstock is een aanname en hoort nog nagekeken te worden.
 
-INSERT OR IGNORE INTO companies (id, name, address, vat, email, order_footer, sort) VALUES
-  (1, 'STVV', 'Stayen 1, 3800 Sint-Truiden', 'BE 0123.456.789', 'inkoop@stvv.example', 'Leveren via de leveranciersingang, ten laatste om 10u.', 1),
-  (2, 'Bistro het Vinne', 'Vinnestraat 2, 3440 Zoutleeuw', 'BE 0987.654.321', 'bistro@vinne.example', 'Leveren aan de keukendeur.', 2);
+INSERT OR IGNORE INTO companies (id, name, sort) VALUES
+  (1, 'STVV', 1),
+  (2, 'Bistro het Vinne', 2);
 
 INSERT OR IGNORE INTO locations (id, company_id, name, sort) VALUES
   (1, 1, 'Toog 1', 1),
@@ -22,12 +22,12 @@ INSERT OR IGNORE INTO locations (id, company_id, name, sort) VALUES
   (13, 2, 'Bar', 1),
   (14, 2, 'Keuken', 2);
 
-INSERT OR IGNORE INTO suppliers (id, company_id, name, email, customer_ref, sort) VALUES
-  (1, 1, 'AB INBEV', 'orders@abinbev.example', '10132459', 1),
-  (2, 1, 'Diest pack', 'bestel@diestpack.example', '88231', 2),
-  (3, 1, 'Van Hende', 'orders@vanhende.example', 'VH-204', 3),
-  (4, 1, 'Rombouts', 'bestel@rombouts.example', 'R-77120', 4),
-  (5, 2, 'Drankencentrale', 'orders@drankencentrale.example', 'KL-2088', 1);
+INSERT OR IGNORE INTO suppliers (id, company_id, name, sort) VALUES
+  (1, 1, 'AB INBEV', 1),
+  (2, 1, 'Diest pack', 2),
+  (3, 1, 'Van Hende', 3),
+  (4, 1, 'Rombouts', 4),
+  (5, 2, 'Drankencentrale', 1);
 
 INSERT OR IGNORE INTO products (id, company_id, name, unit, pack_size, pack_label, supplier_id, sort) VALUES
   (1, 1, 'Jupiler 24x33cl', 'fles', 24, 'bak van 24', 1, 1),

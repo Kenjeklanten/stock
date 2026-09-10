@@ -3,16 +3,18 @@
 -- locaties, leveranciers en producten; niets wordt tussen bedrijven gedeeld.
 
 CREATE TABLE IF NOT EXISTS companies (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  name         TEXT    NOT NULL UNIQUE,
-  address      TEXT,                       -- adresregel op de bestelbon
-  vat          TEXT,                       -- BTW-nummer op de bestelbon
-  email        TEXT,                       -- contactadres op de bestelbon
-  order_footer TEXT,                       -- voettekst op de bestelbon
-  sort         INTEGER NOT NULL DEFAULT 0,
-  active       INTEGER NOT NULL DEFAULT 1,
-  created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT    NOT NULL UNIQUE,
+  sort       INTEGER NOT NULL DEFAULT 0,
+  active     INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Adres, BTW-nummer, contactadres en voettekst zijn eruit: de bestelbon draagt enkel de naam.
+ALTER TABLE companies DROP COLUMN address;
+ALTER TABLE companies DROP COLUMN vat;
+ALTER TABLE companies DROP COLUMN email;
+ALTER TABLE companies DROP COLUMN order_footer;
 
 CREATE TABLE IF NOT EXISTS locations (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,15 +27,17 @@ CREATE TABLE IF NOT EXISTS locations (
 CREATE UNIQUE INDEX IF NOT EXISTS locations_unique ON locations (company_id, name);
 
 CREATE TABLE IF NOT EXISTS suppliers (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  name         TEXT    NOT NULL,
-  email        TEXT,
-  customer_ref TEXT,                      -- ons klantnummer bij deze leverancier
-  sort         INTEGER NOT NULL DEFAULT 0,
-  active       INTEGER NOT NULL DEFAULT 1,
-  created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name       TEXT    NOT NULL,
+  sort       INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+-- E-mailadres, klantnummer en de actief-vlag zijn eruit: ze werden nergens gebruikt.
+ALTER TABLE suppliers DROP COLUMN email;
+ALTER TABLE suppliers DROP COLUMN customer_ref;
+ALTER TABLE suppliers DROP COLUMN active;
 CREATE UNIQUE INDEX IF NOT EXISTS suppliers_unique ON suppliers (company_id, name);
 
 CREATE TABLE IF NOT EXISTS products (
@@ -107,17 +111,8 @@ ALTER TABLE count_lines ADD COLUMN received_packs REAL;
 ALTER TABLE count_lines ADD COLUMN received_loose REAL;
 ALTER TABLE count_lines ADD COLUMN received_qty   REAL;
 
--- Wie mag wat. Zolang deze tabel leeg is, mag iedereen met toegang alles (zo sluit je jezelf
--- niet buiten). Zodra er één rij in staat, telt ze: je ziet enkel de bedrijven waarvoor je een
--- rij hebt. Rol 'beheerder' mag de catalogus van dat bedrijf aanpassen, 'teller' mag enkel tellen.
--- De adressen uit ADMIN_EMAILS blijven altijd overal aan mogen.
-CREATE TABLE IF NOT EXISTS members (
-  email      TEXT    NOT NULL,
-  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  role       TEXT    NOT NULL DEFAULT 'teller',   -- teller | beheerder
-  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
-  PRIMARY KEY (email, company_id)
-);
+-- Toegang loopt volledig via de codes hieronder; de vroegere ledenlijst op e-mailadres is weg.
+DROP TABLE IF EXISTS members;
 
 -- ---------------------------------------------------------------------------------------------
 -- Verkoop uit de kassa. Wat er verkocht is, naast wat er uit de stock verdwenen is: het verschil
@@ -186,12 +181,10 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
-INSERT OR IGNORE INTO settings (key, value) VALUES
-  ('csv_delimiter', ';'),
-  ('schema_version', '2');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('schema_version', '2');
 
--- De ene toegangscode uit de eerste versie is vervangen door de tabel hierboven.
-DELETE FROM settings WHERE key = 'pin';
+-- Het scheidingsteken van de CSV staat vast op een puntkomma (Excel in België en Nederland).
+DELETE FROM settings WHERE key IN ('csv_delimiter', 'pin');
 
 -- De twee codes waarmee gestart wordt. Ze staan hier zodat een verse installatie meteen
 -- bruikbaar is; aanpassen gebeurt daarna in Beheer → Toegang.

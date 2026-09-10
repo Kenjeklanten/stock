@@ -15,7 +15,7 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
   const all = url.searchParams.get('all') === '1';
 
   const [companies, settings, scope] = await Promise.all([
-    D.prepare('SELECT id, name, address, vat, email, order_footer, sort, active FROM companies ORDER BY sort, name').all(),
+    D.prepare('SELECT id, name, sort, active FROM companies ORDER BY sort, name').all(),
     D.prepare('SELECT key, value FROM settings').all(),
     scopeFor(D, data.user),
   ]);
@@ -28,10 +28,10 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
       can_manage: companyId ? mayManage(scope, companyId) : false,
       // met welke toegangscode deze browser binnen is (null = geen code ingesteld)
       code: scope.code,
-      // welke bedrijven deze persoon mag beheren: 'all' of een lijst met nummers
+      // welke bedrijven deze code mag beheren: 'all' of een lijst met nummers
       manageable: scope.manageAll
         ? 'all'
-        : [...scope.roles.entries()].filter(([, role]) => role === 'beheerder').map(([id]) => id),
+        : (scope.role === 'beheerder' ? [...scope.companies] : []),
     },
     companies: allowed,
     settings: Object.fromEntries((settings.results || []).map((r) => [r.key, r.value])),
@@ -42,7 +42,7 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
   out.company = allowed.find((c) => c.id === companyId) || null;
   const [locations, suppliers] = await Promise.all([
     D.prepare('SELECT id, name, sort, active FROM locations WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),
-    D.prepare('SELECT id, name, email, customer_ref, sort, active FROM suppliers WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),
+    D.prepare('SELECT id, name, sort FROM suppliers WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),
   ]);
   out.locations = locations.results || [];
   out.suppliers = suppliers.results || [];

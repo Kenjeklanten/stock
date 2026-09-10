@@ -5,10 +5,6 @@ import { visibleCompanies, requireCompany } from '../../_lib/access.js';
 /** Bedrijven: elk met eigen locaties, leveranciers en producten. De gegevens hier komen op de bestelbon. */
 const fields = (input) => ({
   name: text(input.name, 80),
-  address: text(input.address, 200),
-  vat: text(input.vat, 40),
-  email: text(input.email, 160),
-  order_footer: text(input.order_footer, 300),
   sort: int(input.sort, 0),
   active: input.active === false ? 0 : 1,
 });
@@ -24,8 +20,8 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
   if (!f.name) throw new HttpError('Geef het bedrijf een naam.');
   try {
     const res = await db(env).prepare(
-      'INSERT INTO companies (name, address, vat, email, order_footer, sort, active) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)'
-    ).bind(f.name, f.address, f.vat, f.email, f.order_footer, f.sort, f.active).run();
+      'INSERT INTO companies (name, sort, active) VALUES (?1, ?2, ?3)'
+    ).bind(f.name, f.sort, f.active).run();
     return json({ id: res.meta.last_row_id }, 201);
   } catch (err) {
     if (String(err.message).includes('UNIQUE')) throw new HttpError('Er bestaat al een bedrijf met die naam.', 409);
@@ -41,8 +37,8 @@ export const onRequestPut = handler(async ({ request, env, data }) => {
   const f = fields(input);
   if (!f.name) throw new HttpError('Geef het bedrijf een naam.');
   const res = await db(env).prepare(
-    'UPDATE companies SET name = ?2, address = ?3, vat = ?4, email = ?5, order_footer = ?6, sort = ?7, active = ?8 WHERE id = ?1'
-  ).bind(id, f.name, f.address, f.vat, f.email, f.order_footer, f.sort, f.active).run();
+    'UPDATE companies SET name = ?2, sort = ?3, active = ?4 WHERE id = ?1'
+  ).bind(id, f.name, f.sort, f.active).run();
   if (!res.meta.changes) throw new HttpError('Bedrijf niet gevonden.', 404);
   return json({ ok: true });
 });

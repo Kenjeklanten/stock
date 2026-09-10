@@ -146,6 +146,18 @@ input[type="checkbox"] { width: auto; min-height: auto; accent-color: var(--acti
 .kpi__label { font-size: var(--text-caption); color: var(--text-muted); }
 .columns { columns: 2 16rem; }
 td.center, th.center { text-align: center; }
+
+/* volgorde met slepen */
+.cell-move { width: 5.5rem; white-space: nowrap; }
+.grip { cursor: grab; color: var(--text-muted); font-size: var(--text-body-lg); line-height: 1; padding-right: 2px; }
+tr.dragging { opacity: .45; }
+tr[draggable="true"] { cursor: default; }
+.move {
+  width: 1.6rem; height: 1.6rem; padding: 0; border-radius: var(--radius-sm);
+  border: var(--border-hairline) solid var(--border-soft); background: var(--surface-card);
+  color: var(--text-strong); font-size: var(--text-caption); line-height: 1; cursor: pointer;
+}
+.move:hover { background: var(--je-navy-100); }
 .f-num { max-width: 7rem; text-align: right; }
 b.bad  { color: var(--status-danger); }
 b.warn { color: var(--status-warning); }

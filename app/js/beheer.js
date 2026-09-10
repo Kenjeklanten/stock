@@ -1,11 +1,10 @@
 // Beheerscherm. Alles hangt aan het bedrijf dat bovenaan gekozen is: producten met hun
 // basisstock per locatie, locaties, leveranciers, import/export en de bedrijfsgegevens zelf.
 import { api, toast, fmt, num, el, clear, qs, qsa, mountHeader, plural } from './app.js';
-import { readWorkbook, interpretBestellijst, interpretPerLocation, looksPerLocation } from './xlsx-read.js';
 
 const state = {
   companyId: null, company: null, locations: [], suppliers: [], products: [], companies: [],
-  members: [], codes: [], settings: {}, tab: 'producten', canManage: true, superAdmin: true,
+  codes: [], settings: {}, tab: 'producten', canManage: true, superAdmin: true,
 };
 
 const input = (props) => el('input', { type: 'text', ...props });
@@ -28,7 +27,7 @@ function productRow(p, activeLocations) {
     unit: p.unit || 'stuk', pack_size: p.pack_size, pack_label: p.pack_label || '',
     supplier_id: p.supplier_id || '', active: p.active !== 0, base: { ...(p.base || {}) },
   };
-  const tr = el('tr', {});
+  const tr = el('tr', { dataset: { id: String(p.id) } });
   const save = el('button', { class: 'btn btn--sm', disabled: true, text: 'Bewaar' });
   const bind = (node, key) => {
     node.addEventListener('input', () => { values[key] = node.value; save.disabled = false; });
@@ -140,6 +139,7 @@ function renderProducts(panel) {
   const tbody = el('tbody', {});
   const table = el('div', { class: 'table-wrap' }, [el('table', { class: 'table--edit' }, [
     el('thead', {}, [el('tr', {}, [
+      el('th', { class: 'cell-move', text: '', title: 'Volgorde' }),
       el('th', { text: 'Product' }), el('th', { text: 'Leverancier' }), el('th', { text: 'Eenheid' }), el('th', { text: 'Per verp.' }), el('th', { text: 'Verpakking' }),
       ...activeLocations.map((l) => el('th', { class: 'num', text: `Basis ${l.name}` })),
       el('th', { text: '' }),
@@ -150,8 +150,13 @@ function renderProducts(panel) {
   const fill = (term = '') => {
     clear(tbody);
     const list = state.products.filter((p) => !term || `${p.name} ${p.supplier_name || ''}`.toLowerCase().includes(term));
-    if (!list.length) tbody.append(el('tr', {}, [el('td', { colspan: String(6 + activeLocations.length), class: 'muted', text: 'Geen producten gevonden.' })]));
-    for (const p of list) tbody.append(productRow(p, activeLocations));
+    if (!list.length) tbody.append(el('tr', {}, [el('td', { colspan: String(7 + activeLocations.length), class: 'muted', text: 'Geen producten gevonden.' })]));
+    for (const p of list) {
+      const rij = productRow(p, activeLocations);
+      rij.prepend(volgordeCel(rij, tbody, 'products'));
+      tbody.append(rij);
+    }
+    maakSleepbaar(tbody, 'products');
   };
   fill();
   search.addEventListener('input', () => fill(search.value.trim().toLowerCase()));
@@ -160,16 +165,82 @@ function renderProducts(panel) {
   panel.append(card);
 }
 
+/* ---------------- volgorde: slepen of met de pijltjes ---------------- */
+
+/**
+ * De volgorde van een lijst wordt niet meer met een cijferkolom ingevuld maar met de rijen zelf:
+ * slepen met de muis, of de pijltjes voor wie liever tikt of het toetsenbord gebruikt.
+ */
+function volgordeCel(tr, tbody, tabel) {
+  const verzet = (richting) => {
+    const buur = richting < 0 ? tr.previousElementSibling : tr.nextElementSibling;
+    if (!buur || !buur.dataset.id) return;
+    tbody.insertBefore(richting < 0 ? tr : buur, richting < 0 ? buur : tr);
+    bewaarVolgorde(tbody, tabel);
+  };
+  const pijl = (teken, richting, naam) => {
+    const b = el('button', { type: 'button', class: 'move', text: teken, title: naam, 'aria-label': naam });
+    b.addEventListener('click', () => verzet(richting));
+    return b;
+  };
+  return el('td', { class: 'cell-move' }, [
+    el('span', { class: 'grip', title: 'Sleep om te herschikken', 'aria-hidden': 'true', text: '⠿' }),
+    pijl('↑', -1, 'Naar boven'),
+    pijl('↓', 1, 'Naar onder'),
+  ]);
+}
+
+async function bewaarVolgorde(tbody, tabel) {
+  const ids = [...tbody.children].map((tr) => Number(tr.dataset.id)).filter(Boolean);
+  if (!ids.length) return;
+  try {
+    await api('/api/admin/sort', { method: 'POST', body: { table: tabel, ids } });
+    // de lijst in het geheugen mee bijwerken, zodat andere tabs dezelfde volgorde tonen
+    await refresh();
+  } catch (err) { toast(err.message, true); }
+}
+
+/** Rijen slepen. Werkt met de muis; op een tablet gebruik je de pijltjes. */
+function maakSleepbaar(tbody, tabel) {
+  let bron = null;
+  for (const tr of [...tbody.children]) {
+    if (!tr.dataset.id) continue;
+    tr.draggable = true;
+    tr.addEventListener('dragstart', (e) => {
+      bron = tr;
+      tr.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', tr.dataset.id);
+    });
+    tr.addEventListener('dragend', () => {
+      tr.classList.remove('dragging');
+      bron = null;
+      bewaarVolgorde(tbody, tabel);
+    });
+    tr.addEventListener('dragover', (e) => {
+      if (!bron || bron === tr) return;
+      e.preventDefault();
+      const vak = tr.getBoundingClientRect();
+      const onderhelft = e.clientY > vak.top + vak.height / 2;
+      tbody.insertBefore(bron, onderhelft ? tr.nextSibling : tr);
+    });
+  }
+}
+
 /* ---------------- eenvoudige tabellen ---------------- */
 
-function crudTable({ title, endpoint, items, columns, newLabel, withCompany = true }) {
+function crudTable({ title, endpoint, table, items, columns, newLabel, withCompany = true, withActive = true }) {
   // Bij bedrijven verandert ook de keuzelijst bovenaan: het scherm wordt opnieuw opgebouwd.
   const reloadAfter = endpoint.endsWith('/companies');
   const tbody = el('tbody', {});
   const card = el('section', { class: 'card' }, [
     el('div', { class: 'card__head' }, [el('h2', { text: `${title} (${items.length})` })]),
     el('div', { class: 'table-wrap' }, [el('table', {}, [
-      el('thead', {}, [el('tr', {}, [...columns.map((c) => el('th', { text: c.label })), el('th', { text: 'Actief' }), el('th', { text: '' })])]),
+      el('thead', {}, [el('tr', {}, [
+        el('th', { class: 'cell-move', text: '', title: 'Volgorde' }),
+        ...columns.map((c) => el('th', { text: c.label })),
+        withActive ? el('th', { text: 'Actief' }) : null, el('th', { text: '' }),
+      ])]),
       tbody,
     ])]),
   ]);
@@ -177,7 +248,7 @@ function crudTable({ title, endpoint, items, columns, newLabel, withCompany = tr
   for (const item of items) {
     const values = { ...item, active: item.active !== 0 };
     const save = el('button', { class: 'btn btn--sm', disabled: true, text: 'Bewaar' });
-    const tr = el('tr', {}, columns.map((c) => {
+    const tr = el('tr', { dataset: { id: String(item.id) } }, columns.map((c) => {
       const node = el('input', {
         type: c.type || 'text',
         value: values[c.k] === null || values[c.k] === undefined ? '' : String(values[c.k]),
@@ -186,9 +257,12 @@ function crudTable({ title, endpoint, items, columns, newLabel, withCompany = tr
       node.addEventListener('input', () => { values[c.k] = node.value; save.disabled = false; });
       return el('td', { class: c.narrow ? 'cell-narrow' : '' }, [node]);
     }));
-    const active = el('input', { type: 'checkbox', checked: values.active, class: 'check', 'aria-label': `Actief ${item.name}` });
-    active.addEventListener('change', () => { values.active = active.checked; save.disabled = false; });
-    tr.append(el('td', {}, [active]));
+    tr.prepend(volgordeCel(tr, tbody, table));
+    if (withActive) {
+      const active = el('input', { type: 'checkbox', checked: values.active, class: 'check', 'aria-label': `Actief ${item.name}` });
+      active.addEventListener('change', () => { values.active = active.checked; save.disabled = false; });
+      tr.append(el('td', {}, [active]));
+    }
 
     save.addEventListener('click', async () => {
       save.disabled = true;
@@ -212,7 +286,8 @@ function crudTable({ title, endpoint, items, columns, newLabel, withCompany = tr
     tr.append(el('td', {}, [el('div', { class: 'row' }, [save, del])]));
     tbody.append(tr);
   }
-  if (!items.length) tbody.append(el('tr', {}, [el('td', { colspan: String(columns.length + 2), class: 'muted', text: 'Nog niets toegevoegd.' })]));
+  if (!items.length) tbody.append(el('tr', {}, [el('td', { colspan: String(columns.length + (withActive ? 3 : 2)), class: 'muted', text: 'Nog niets toegevoegd.' })]));
+  maakSleepbaar(tbody, table);
 
   const fields = columns.map((c) => ({ c, node: el('input', { type: c.type || 'text', placeholder: c.label }) }));
   const add = el('button', { class: 'btn', text: newLabel });
@@ -234,135 +309,7 @@ function crudTable({ title, endpoint, items, columns, newLabel, withCompany = tr
   return card;
 }
 
-/* ---------------- import / export ---------------- */
-
-function renderImport(panel) {
-  const area = el('textarea', { class: 'code-area', placeholder: 'Plak hier de inhoud van je CSV-bestand…' });
-  const file = el('input', { type: 'file', accept: '.xlsx,.csv,text/csv,text/plain' });
-  const out = el('div', {});
-  const preview = el('button', { class: 'btn btn--ghost', text: 'Controleren' });
-  const apply = el('button', { class: 'btn', text: 'Importeren', disabled: true });
-  const values = el('select', {}, [
-    el('option', { value: 'base_packs', text: 'Basisstock in volle bakken, dozen of vaten' }),
-    el('option', { value: 'base', text: 'Basisstock in losse stuks' }),
-    el('option', { value: 'ignore', text: 'Alleen producten en locaties overnemen' }),
-  ]);
-  const valuesRow = el('div', { class: 'f-16 hidden' }, [el('label', { text: 'Wat staat er in de cijferkolom?' }), values]);
-
-  let workbook = null;    // ingelezen tabbladen uit een xlsx
-
-  const summary = (parsed, shape) => {
-    const locaties = new Set();
-    let waarden = 0;
-    let producten = 0;
-    for (const supplier of parsed.suppliers) {
-      for (const name of supplier.locations || []) locaties.add(name);
-      producten += supplier.products.length;
-      for (const product of supplier.products) waarden += Object.keys(product.values || {}).length;
-    }
-    return el('div', { class: 'notice' }, [
-      el('b', { text: shape === 'per-locatie' ? 'Werkboek met één tabblad per locatie' : 'Werkboek in de vorm van de bestellijst' }),
-      el('ul', {}, [
-        el('li', { text: `Leveranciers: ${parsed.suppliers.map((s) => s.name || 'zonder leverancier').join(', ')}` }),
-        el('li', { text: `Locaties: ${[...locaties].join(', ') || 'geen'}` }),
-        el('li', { text: `${plural(producten, 'product', 'producten')} met ${waarden} ingevulde waarden` }),
-      ]),
-      ...(parsed.warnings || []).slice(0, 8).map((w) => el('p', { class: 'small', text: `⚠ ${w}` })),
-      el('p', { class: 'small muted', text: 'Klik op Controleren om te zien wat er zou veranderen; pas daarna Importeren.' }),
-    ]);
-  };
-
-  file.addEventListener('change', async () => {
-    const chosen = file.files && file.files[0];
-    if (!chosen) return;
-    workbook = null;
-    valuesRow.classList.add('hidden');
-    apply.disabled = true;
-    clear(out);
-
-    if (!/\.xlsx$/i.test(chosen.name)) {
-      area.value = await chosen.text();
-      toast(`${chosen.name} ingelezen — klik op Controleren.`);
-      return;
-    }
-    try {
-      const sheets = await readWorkbook(chosen);
-      const perLocation = looksPerLocation(sheets);
-      const parsed = perLocation
-        ? interpretPerLocation(sheets, { knownSuppliers: state.suppliers.map((s) => s.name) })
-        : interpretBestellijst(sheets);
-      if (!parsed.suppliers.length) throw new Error('Geen bruikbare tabbladen gevonden in dit bestand.');
-      workbook = parsed;
-      values.value = perLocation ? 'base_packs' : 'ignore';
-      valuesRow.classList.remove('hidden');
-      area.value = '';
-      out.append(summary(parsed, perLocation ? 'per-locatie' : 'bestellijst'));
-    } catch (err) {
-      toast(err.message, true);
-    }
-  });
-
-  const run = async (mode) => {
-    const body = { company_id: state.companyId, mode };
-    if (workbook) {
-      body.sheets = workbook.suppliers;
-      body.values = values.value;
-    } else if (area.value.trim()) {
-      body.csv = area.value;
-    } else {
-      return toast('Kies een bestand of plak een CSV.', true);
-    }
-    try {
-      const res = await api('/api/admin/import', { method: 'POST', body });
-      const r = res.report;
-      clear(out).append(el('div', { class: res.preview ? 'notice' : 'notice notice--ok' }, [
-        el('b', { text: res.preview ? `Voorbeeld voor ${r.company} — er is nog niets gewijzigd` : `Import uitgevoerd voor ${r.company}` }),
-        el('ul', {}, [
-          el('li', { text: `${plural(r.rows, 'productrij', 'productrijen')}: ${r.products_new} nieuw, ${r.products_updated} bijgewerkt` }),
-          el('li', { text: `Locaties: ${r.locations_used.join(', ') || 'geen'}${r.locations_new.length ? ` (nieuw: ${r.locations_new.join(', ')})` : ''}` }),
-          el('li', { text: `Nieuwe leveranciers: ${r.suppliers_new.join(', ') || 'geen'}` }),
-          el('li', { text: `${r.par_rows} basisstock-waarden` }),
-        ]),
-        ...(r.warnings || []).slice(0, 10).map((w) => el('p', { class: 'small', text: `⚠ ${w}` })),
-      ]));
-      apply.disabled = !res.preview;
-      if (!res.preview) { await refresh(); toast('Catalogus bijgewerkt.'); }
-    } catch (err) { toast(err.message, true); }
-  };
-  preview.addEventListener('click', () => run('preview'));
-  apply.addEventListener('click', () => { if (confirm(`De catalogus van ${state.company ? state.company.name : 'dit bedrijf'} bijwerken?`)) run('apply'); });
-
-  panel.append(
-    el('section', { class: 'card' }, [
-      el('h2', { text: `Catalogus importeren voor ${state.company ? state.company.name : '—'}` }),
-      el('p', { class: 'small muted', text: 'Twee vormen worden herkend. (1) Een Excel-bestand met één tabblad per locatie, met de producten in kolom A en een kolom "Begin Stock" — dat is de stocktelling zoals ze vandaag gebruikt wordt. (2) Een CSV of Excel in de vorm van de bestellijst: één tabblad per leverancier met de locaties als kolommen. Onbekende locaties, leveranciers en producten worden binnen dit bedrijf aangemaakt.' }),
-      el('div', { class: 'my-1' }, [file]),
-      valuesRow,
-      el('details', { class: 'mt-1' }, [
-        el('summary', { text: 'Of een CSV plakken' }),
-        el('p', { class: 'small muted mt-1', text: 'Kolommen: Product · Eenheid · Verpakking · Verpakkingsnaam · Leverancier, gevolgd door één kolom per locatie met de basisstock.' }),
-        area,
-      ]),
-      el('div', { class: 'row mt-1' }, [preview, apply]),
-      out,
-    ]),
-    el('section', { class: 'card' }, [
-      el('h2', { text: 'Catalogus exporteren' }),
-      el('p', { class: 'small muted', text: 'Zelfde kolommen als de CSV-import: aanpassen in Excel en opnieuw importeren.' }),
-      el('a', { class: 'btn btn--ghost mt-1', href: `/api/admin/export?company_id=${state.companyId}`, text: 'Producten + basisstock (CSV)' }),
-    ]),
-  );
-}
-
 /* ---------------- toegang ---------------- */
-
-async function loadMembers() {
-  try {
-    const res = await api(`/api/admin/members?company_id=${state.companyId}`);
-    state.members = res.members || [];
-    state.membersConfigured = res.configured;
-  } catch { state.members = []; }
-}
 
 async function loadCodes() {
   try {
@@ -442,98 +389,8 @@ function renderCodes(panel) {
 }
 
 function renderAccess(panel) {
-  const naam = state.company ? state.company.name : '—';
-  const tbody = el('tbody', {});
-  const card = el('section', { class: 'card' }, [
-    el('div', { class: 'card__head' }, [el('h2', { text: `Wie mag bij ${naam}` })]),
-    el('p', { class: 'small muted' }, [
-      state.membersConfigured
-        ? 'Enkel de adressen hieronder zien dit bedrijf. Een teller mag tellen en bestellingen bekijken; een beheerder mag ook de catalogus aanpassen.'
-        : 'Er is nog niemand toegevoegd, dus iedereen die door Cloudflare Access geraakt, ziet alle bedrijven. Zodra je hier het eerste adres toevoegt, telt deze lijst — voeg dus eerst jezelf toe.',
-    ]),
-    el('div', { class: 'table-wrap mt-2' }, [el('table', {}, [
-      el('thead', {}, [el('tr', {}, [el('th', { text: 'E-mailadres' }), el('th', { text: 'Rol' }), el('th', { text: '' })])]),
-      tbody,
-    ])]),
-  ]);
-
-  for (const member of state.members) {
-    const rol = el('select', { 'aria-label': `Rol van ${member.email}` }, [
-      el('option', { value: 'teller', text: 'teller — mag tellen' }),
-      el('option', { value: 'beheerder', text: 'beheerder — mag ook de catalogus aanpassen' }),
-    ]);
-    rol.value = member.role;
-    rol.addEventListener('change', async () => {
-      try {
-        await api('/api/admin/members', { method: 'POST', body: { company_id: state.companyId, email: member.email, role: rol.value } });
-        toast(`${member.email} is nu ${rol.value}.`);
-        await loadMembers();
-      } catch (err) { toast(err.message, true); rol.value = member.role; }
-    });
-    const del = el('button', { class: 'btn btn--sm btn--danger', text: 'Wis' });
-    del.addEventListener('click', async () => {
-      if (!confirm(`${member.email} de toegang tot ${naam} ontnemen?`)) return;
-      try {
-        const res = await api(`/api/admin/members?company_id=${state.companyId}&email=${encodeURIComponent(member.email)}`, { method: 'DELETE' });
-        toast(res.message || 'Verwijderd.');
-        await loadMembers();
-        renderTab();
-      } catch (err) { toast(err.message, true); }
-    });
-    tbody.append(el('tr', {}, [el('td', { text: member.email }), el('td', {}, [rol]), el('td', {}, [del])]));
-  }
-  if (!state.members.length) tbody.append(el('tr', {}, [el('td', { colspan: '3', class: 'muted', text: 'Nog niemand toegevoegd.' })]));
-
-  const email = el('input', { type: 'email', placeholder: 'naam@bedrijf.be' });
-  const role = el('select', {}, [
-    el('option', { value: 'teller', text: 'teller' }),
-    el('option', { value: 'beheerder', text: 'beheerder' }),
-  ]);
-  const add = el('button', { class: 'btn', text: 'Toegang geven' });
-  add.addEventListener('click', async () => {
-    if (!email.value.trim()) return toast('Vul een e-mailadres in.', true);
-    try {
-      const res = await api('/api/admin/members', { method: 'POST', body: { company_id: state.companyId, email: email.value, role: role.value } });
-      toast(res.message || 'Toegevoegd.');
-      email.value = '';
-      await loadMembers();
-      renderTab();
-    } catch (err) { toast(err.message, true); }
-  });
-  card.append(el('div', { class: 'row mt-2 align-end' }, [
-    el('div', { class: 'f-field-wide' }, [el('label', { text: 'E-mailadres (zoals in Cloudflare Access)' }), email]),
-    el('div', { class: 'f-field' }, [el('label', { text: 'Rol' }), role]),
-    el('div', { class: 'f-fixed' }, [add]),
-  ]));
-  panel.append(card, el('p', { class: 'small muted', text: 'Hoofdbeheerders staan in de variabele ADMIN_EMAILS van de omgeving; die mogen altijd overal aan, ook bedrijven aanmaken.' }));
-  if (state.superAdmin) renderCodes(panel);
-}
-
-/* ---------------- instellingen ---------------- */
-
-function renderSettings(panel) {
-  const delimiter = el('select', { id: 'csv-delimiter' }, [
-    el('option', { value: ';', text: 'Puntkomma ;  (Excel België/Nederland)' }),
-    el('option', { value: ',', text: 'Komma ,' }),
-    el('option', { value: '\t', text: 'Tab' }),
-  ]);
-  delimiter.value = state.settings.csv_delimiter || ';';
-  const save = el('button', { class: 'btn', text: 'Bewaren' });
-  save.addEventListener('click', async () => {
-    try {
-      const res = await api('/api/admin/settings', { method: 'POST', body: { csv_delimiter: delimiter.value } });
-      state.settings = res.settings;
-      toast('Instellingen bewaard.');
-    } catch (err) { toast(err.message, true); }
-  });
-
-  panel.append(el('section', { class: 'card' }, [
-    el('h2', { text: 'Algemene instellingen' }),
-    el('p', { class: 'small muted', text: 'De naam, het adres en de voettekst op de bestelbon staan bij het bedrijf zelf (tab Bedrijven).' }),
-    el('p', { class: 'small muted', text: 'De toegangscodes staan in de tab Toegang.' }),
-    el('div', { class: 'field-narrow mt-2' }, [el('label', { for: 'csv-delimiter', text: 'CSV-scheidingsteken' }), delimiter]),
-    el('div', { class: 'mt-2' }, [save]),
-  ]));
+  panel.append(el('p', { class: 'page-intro small muted', text: 'De toegang tot de tool loopt volledig via cijfercodes: de code die iemand invoert, bepaalt ook wat hij mag en welk bedrijf hij ziet.' }));
+  renderCodes(panel);
 }
 
 /* ---------------- tabs ---------------- */
@@ -550,28 +407,23 @@ function renderTab() {
   }
   if (state.tab === 'producten') renderProducts(panel);
   else if (state.tab === 'locaties') panel.append(crudTable({
-    title: `Locaties van ${state.company ? state.company.name : '—'}`, endpoint: '/api/admin/locations', items: state.locations, newLabel: 'Locatie toevoegen',
-    columns: [{ k: 'name', label: 'Naam' }, { k: 'sort', label: 'Volgorde', type: 'number', narrow: true }],
+    title: `Locaties van ${state.company ? state.company.name : '—'}`, endpoint: '/api/admin/locations', table: 'locations',
+    items: state.locations, newLabel: 'Locatie toevoegen', columns: [{ k: 'name', label: 'Naam' }],
   }));
   else if (state.tab === 'leveranciers') panel.append(crudTable({
-    title: `Leveranciers van ${state.company ? state.company.name : '—'}`, endpoint: '/api/admin/suppliers', items: state.suppliers, newLabel: 'Leverancier toevoegen',
-    columns: [{ k: 'name', label: 'Naam' }, { k: 'email', label: 'E-mail', narrow: true }, { k: 'customer_ref', label: 'Klantnummer', narrow: true }, { k: 'sort', label: 'Volgorde', type: 'number', narrow: true }],
+    title: `Leveranciers van ${state.company ? state.company.name : '—'}`, endpoint: '/api/admin/suppliers', table: 'suppliers',
+    items: state.suppliers, newLabel: 'Leverancier toevoegen', columns: [{ k: 'name', label: 'Naam' }], withActive: false,
   }));
-  else if (state.tab === 'import') renderImport(panel);
   else if (state.tab === 'toegang') renderAccess(panel);
   else if (state.tab === 'bedrijven') {
     panel.append(
-      el('p', { class: 'page-intro small muted', text: 'Elk bedrijf heeft zijn eigen locaties, leveranciers en producten. Deze gegevens komen op de bestelbon.' }),
+      el('p', { class: 'page-intro small muted', text: 'Elk bedrijf heeft zijn eigen locaties, leveranciers en producten. De naam komt bovenaan de bestelbon.' }),
       crudTable({
-        title: 'Bedrijven', endpoint: '/api/admin/companies', items: state.companies, newLabel: 'Bedrijf toevoegen', withCompany: false,
-        columns: [
-          { k: 'name', label: 'Naam' }, { k: 'address', label: 'Adresregel' }, { k: 'vat', label: 'BTW-nummer', narrow: true },
-          { k: 'email', label: 'E-mail', narrow: true }, { k: 'order_footer', label: 'Voettekst bestelbon' },
-          { k: 'sort', label: 'Volgorde', type: 'number', narrow: true },
-        ],
+        title: 'Bedrijven', endpoint: '/api/admin/companies', table: 'companies', items: state.companies,
+        newLabel: 'Bedrijf toevoegen', withCompany: false, columns: [{ k: 'name', label: 'Naam' }],
       }),
     );
-  } else renderSettings(panel);
+  }
 }
 
 async function init() {
@@ -581,7 +433,6 @@ async function init() {
   state.superAdmin = header.superAdmin;
   if (!state.superAdmin) qsa('[data-super-only]').forEach((n) => n.classList.add('hidden'));
   await refresh();
-  if (state.companyId) await loadMembers();
   if (state.superAdmin) await loadCodes();
   if (!state.companyId) state.tab = state.superAdmin ? 'bedrijven' : 'toegang';
   else if (!state.canManage) state.tab = 'toegang';
