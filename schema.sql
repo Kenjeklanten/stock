@@ -195,6 +195,17 @@ CREATE TABLE IF NOT EXISTS sales_lines (
   PRIMARY KEY (import_id, article_name, location_name)
 );
 
+-- Beheerders die met hun Google-account aanmelden (via Cloudflare Access). Wie een adres van
+-- het beheerdersdomein heeft, mag standaard alles; staat hij hieronder, dan geldt die rij.
+-- Zo kan iemand beheerder zijn van één bedrijf zonder bij de rest te kunnen.
+CREATE TABLE IF NOT EXISTS admins (
+  email      TEXT    PRIMARY KEY,
+  company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,   -- leeg = alle bedrijven
+  role       TEXT    NOT NULL DEFAULT 'beheerder',                 -- teller | beheerder
+  note       TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Toegangscodes: de cijfercode die vóór de hele tool zit. Elke code draagt haar eigen rechten,
 -- dus wie enkel mag tellen krijgt een andere code dan wie alles mag. company_id leeg = alle
 -- bedrijven. Staat er geen enkele actieve code in, dan wordt er niets gevraagd.

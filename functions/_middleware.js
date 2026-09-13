@@ -9,7 +9,9 @@
  *      adressen van één domein door (ADMIN_DOMAIN, standaard kenjeklanten.be) en zet bij elk
  *      verzoek een ondertekende JWT in de cookie `CF_Authorization`. Die handtekening rekenen we
  *      hier zelf na, zodat het ook klopt als iemand het *.pages.dev-adres rechtstreeks probeert.
- *      Een geldige Access-sessie met zo'n adres geeft volledige toegang; er is dan geen code nodig.
+ *      Een geldige Access-sessie met zo'n adres geeft standaard volledige toegang; er is dan geen
+ *      code nodig. Staat het adres in de tabel `admins`, dan geldt die rij — zo kan iemand
+ *      beheerder zijn van één bedrijf zonder bij de rest te kunnen.
  *
  * Access wordt aangezet op één enkel pad — /aanmelden. Wie daarheen gaat, krijgt het
  * aanmeldscherm van Google; de rest van de tool blijft bereikbaar met een code. Zo staat niemand
@@ -133,18 +135,45 @@ async function accessBeheerder(request, env) {
   return email.endsWith(`@${beheerDomein(env)}`) ? email : null;
 }
 
+/**
+ * Wat mag deze beheerder? Standaard alles; staat hij in `admins`, dan geldt die rij.
+ * Het resultaat heeft dezelfde vorm als een toegangscode, zodat de rest van de tool
+ * er niets van hoeft te weten.
+ */
+async function rechtenVan(env, email) {
+  const vol = { label: email, role: 'beheerder', company_id: null };
+  if (!env.DB) return vol;
+  try {
+    const rij = await env.DB.prepare(
+      `SELECT a.company_id, a.role, c.name AS company_name
+         FROM admins a LEFT JOIN companies c ON c.id = a.company_id
+        WHERE lower(a.email) = ?1`
+    ).bind(email.toLowerCase()).first();
+    if (!rij) return vol;
+    return {
+      label: email,
+      role: rij.role === 'teller' ? 'teller' : 'beheerder',
+      company_id: rij.company_id ?? null,
+      company_name: rij.company_name || null,
+    };
+  } catch {
+    // de tabel bestaat nog niet (oudere databank): dan geldt de standaard
+    return vol;
+  }
+}
+
 export async function onRequest(context) {
   const { request, env, next, data } = context;
   const url = new URL(request.url);
 
-  // Aangemeld met een Google-account van het beheerdersdomein: volledige toegang, geen code.
+  // Aangemeld met een Google-account van het beheerdersdomein.
   const beheerder = await accessBeheerder(request, env);
   if (beheerder) {
     data.user = {
       email: beheerder,
       protected: true,
       admin_login: true,
-      code: { label: beheerder, role: 'beheerder', company_id: null },
+      code: await rechtenVan(env, beheerder),
     };
     return next();
   }

@@ -4,7 +4,7 @@ import { api, toast, fmt, num, el, clear, qs, qsa, mountHeader, plural } from '.
 
 const state = {
   companyId: null, company: null, locations: [], suppliers: [], products: [], companies: [],
-  codes: [], reasons: [], settings: {}, tab: 'producten', canManage: true, superAdmin: true,
+  codes: [], admins: [], reasons: [], settings: {}, tab: 'producten', canManage: true, superAdmin: true,
 };
 
 const input = (props) => el('input', { type: 'text', ...props });
@@ -338,6 +338,83 @@ function renderReasons(panel) {
 
 /* ---------------- toegang ---------------- */
 
+async function loadAdmins() {
+  try {
+    const res = await api('/api/admin/admins');
+    state.admins = res.admins || [];
+  } catch { state.admins = []; }
+}
+
+/**
+ * Wie met een Google-account aanmeldt, mag standaard alles. Hier beperk je iemand tot één
+ * bedrijf — handig voor wie enkel Het Vinne of enkel STVV doet.
+ */
+function renderAdmins(panel) {
+  const tbody = el('tbody', {});
+  for (const a of state.admins) {
+    const del = el('button', { class: 'btn btn--sm btn--danger', text: 'Wis' });
+    del.addEventListener('click', async () => {
+      if (!confirm(`${a.email} uit de lijst halen? Die persoon krijgt dan weer toegang tot álle bedrijven.`)) return;
+      try {
+        const res = await api(`/api/admin/admins?email=${encodeURIComponent(a.email)}`, { method: 'DELETE' });
+        state.admins = res.admins || [];
+        toast(res.message || 'Verwijderd.');
+        renderTab();
+      } catch (err) { toast(err.message, true); }
+    });
+    tbody.append(el('tr', {}, [
+      el('td', {}, [el('b', { text: a.email }), a.note ? el('div', { class: 'small muted', text: a.note }) : null]),
+      el('td', { text: a.company_name || 'Alle bedrijven' }),
+      el('td', { text: a.role === 'teller' ? 'enkel tellen' : 'beheren' }),
+      el('td', {}, [del]),
+    ]));
+  }
+  if (!state.admins.length) {
+    tbody.append(el('tr', {}, [el('td', { colspan: '4', class: 'muted', text: 'Niemand beperkt: elk adres van het beheerdersdomein mag alles.' })]));
+  }
+
+  const email = el('input', { type: 'email', placeholder: 'naam@kenjeklanten.be' });
+  const bedrijf = el('select', {}, [el('option', { value: '', text: 'Alle bedrijven' }),
+    ...state.companies.map((c) => el('option', { value: String(c.id), text: c.name }))]);
+  const rol = el('select', {}, [
+    el('option', { value: 'beheerder', text: 'beheren' }),
+    el('option', { value: 'teller', text: 'enkel tellen' }),
+  ]);
+  const notitie = el('input', { type: 'text', maxlength: '200', placeholder: 'bv. doet de bistro' });
+  const add = el('button', { class: 'btn', text: 'Bewaren' });
+  add.addEventListener('click', async () => {
+    if (!email.value.trim()) return toast('Vul een e-mailadres in.', true);
+    try {
+      const res = await api('/api/admin/admins', {
+        method: 'POST',
+        body: { email: email.value, company_id: bedrijf.value || null, role: rol.value, note: notitie.value },
+      });
+      state.admins = res.admins || [];
+      email.value = ''; notitie.value = '';
+      toast('Bewaard.');
+      renderTab();
+    } catch (err) { toast(err.message, true); }
+  });
+
+  panel.append(el('section', { class: 'card' }, [
+    el('div', { class: 'card__head' }, [el('h2', { text: 'Beheerders met een Google-account' })]),
+    el('p', { class: 'small muted', text: 'Iedereen met een adres van het beheerdersdomein mag standaard alles. Zet hier wie beperkt moet blijven tot één bedrijf. Een adres weer uit de lijst halen geeft die persoon opnieuw toegang tot alles.' }),
+    el('div', { class: 'table-wrap mt-2' }, [el('table', {}, [
+      el('thead', {}, [el('tr', {}, [
+        el('th', { text: 'E-mailadres' }), el('th', { text: 'Mag bij' }), el('th', { text: 'Mag' }), el('th', { text: '' }),
+      ])]),
+      tbody,
+    ])]),
+    el('div', { class: 'row mt-2 align-end' }, [
+      el('div', { class: 'f-field-wide' }, [el('label', { text: 'E-mailadres' }), email]),
+      el('div', { class: 'f-field' }, [el('label', { text: 'Bedrijf' }), bedrijf]),
+      el('div', { class: 'f-field' }, [el('label', { text: 'Mag' }), rol]),
+      el('div', { class: 'f-field-wide' }, [el('label', { text: 'Notitie' }), notitie]),
+      el('div', { class: 'f-fixed' }, [add]),
+    ]),
+  ]));
+}
+
 async function loadCodes() {
   try {
     const res = await api('/api/admin/codes');
@@ -416,8 +493,9 @@ function renderCodes(panel) {
 }
 
 function renderAccess(panel) {
-  panel.append(el('p', { class: 'page-intro small muted', text: 'De toegang tot de tool loopt volledig via cijfercodes: de code die iemand invoert, bepaalt ook wat hij mag en welk bedrijf hij ziet.' }));
+  panel.append(el('p', { class: 'page-intro small muted', text: 'Er zijn twee manieren om binnen te komen: een cijfercode, of aanmelden met een Google-account. In beide gevallen bepaalt de manier van binnenkomen ook wat iemand mag zien.' }));
   renderCodes(panel);
+  renderAdmins(panel);
 }
 
 /* ---------------- tabs ---------------- */
@@ -461,7 +539,7 @@ async function init() {
   state.superAdmin = header.superAdmin;
   if (!state.superAdmin) qsa('[data-super-only]').forEach((n) => n.classList.add('hidden'));
   await refresh();
-  if (state.superAdmin) await loadCodes();
+  if (state.superAdmin) await Promise.all([loadCodes(), loadAdmins()]);
   if (!state.companyId) state.tab = state.superAdmin ? 'bedrijven' : 'toegang';
   else if (!state.canManage) state.tab = 'toegang';
   qsa('.tabs button').forEach((btn) => {

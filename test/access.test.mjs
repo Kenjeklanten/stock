@@ -9,6 +9,7 @@ import * as companiesApi from '../functions/api/admin/companies.js';
 import * as locationsApi from '../functions/api/admin/locations.js';
 import * as productsApi from '../functions/api/admin/products.js';
 import * as codesApi from '../functions/api/admin/codes.js';
+import * as adminsApi from '../functions/api/admin/admins.js';
 import * as catalogApi from '../functions/api/catalog.js';
 import * as countsApi from '../functions/api/counts.js';
 
@@ -114,4 +115,54 @@ test('een Google-aanmelding van het beheerdersdomein geeft volledige toegang', a
   assert.equal(cat.companies.length, 2, 'ziet alle bedrijven');
   assert.equal(cat.user.manageable, 'all');
   assert.equal((await codesApi.onRequestGet(ctx(env, { user: beheerder }))).status, 200, 'mag ook de codes beheren');
+});
+
+test('een beheerder kan beperkt worden tot één bedrijf', async () => {
+  const env = newEnv();
+  const ids = await tweeBedrijven(env);
+  const baas = {
+    email: 'jasper@kenjeklanten.be', protected: true, admin_login: true,
+    code: { label: 'jasper@kenjeklanten.be', role: 'beheerder', company_id: null },
+  };
+
+  // zolang de lijst leeg is, mag elk adres van het domein alles
+  assert.deepEqual((await asJson(await adminsApi.onRequestGet(ctx(env, { user: baas })))).admins, []);
+
+  const gezet = await asJson(await adminsApi.onRequestPost(ctx(env, {
+    method: 'POST', user: baas,
+    body: { email: 'anneleen@kenjeklanten.be', company_id: ids.b, role: 'beheerder', note: 'doet de bistro' },
+  })));
+  assert.equal(gezet.admins.length, 1);
+  assert.equal(gezet.admins[0].company_name, 'Bistro het Vinne');
+
+  // zo zet de middleware het klaar voor iemand die in de lijst staat
+  const anneleen = {
+    email: 'anneleen@kenjeklanten.be', protected: true, admin_login: true,
+    code: { label: 'anneleen@kenjeklanten.be', role: 'beheerder', company_id: ids.b },
+  };
+  const cat = await asJson(await catalogApi.onRequestGet(ctx(env, { url: 'https://x/api/catalog', user: anneleen })));
+  assert.deepEqual(cat.companies.map((c) => c.name), ['Bistro het Vinne'], 'ziet enkel haar eigen zaak');
+  assert.deepEqual(cat.user.manageable, [ids.b], 'en mag die beheren');
+
+  assert.equal((await catalogApi.onRequestGet(ctx(env, { url: `https://x/api/catalog?company_id=${ids.a}`, user: anneleen }))).status, 403, 'STVV blijft dicht');
+  assert.equal((await locationsApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: ids.b, name: 'Terras' }, user: anneleen }))).status, 201);
+  assert.equal((await locationsApi.onRequestPost(ctx(env, { method: 'POST', body: { company_id: ids.a, name: 'Toog 9' }, user: anneleen }))).status, 403);
+  assert.equal((await adminsApi.onRequestGet(ctx(env, { user: anneleen }))).status, 403, 'en kan de lijst zelf niet aanpassen');
+
+  // wie niet in de lijst staat, houdt volledige toegang
+  const cat2 = await asJson(await catalogApi.onRequestGet(ctx(env, { url: 'https://x/api/catalog', user: baas })));
+  assert.equal(cat2.companies.length, 2);
+
+  // jezelf tot één bedrijf beperken zou de deur achter je dichttrekken
+  const zelf = await adminsApi.onRequestPost(ctx(env, {
+    method: 'POST', user: baas, body: { email: 'jasper@kenjeklanten.be', company_id: ids.a },
+  }));
+  assert.equal(zelf.status, 400);
+
+  // en uit de lijst halen geeft weer volledige toegang
+  const weg = await asJson(await adminsApi.onRequestDelete(ctx(env, {
+    method: 'DELETE', user: baas, url: 'https://x/api/admin/admins?email=anneleen@kenjeklanten.be',
+  })));
+  assert.equal(weg.admins.length, 0);
+  assert.match(weg.message, /weer volledige toegang/);
 });

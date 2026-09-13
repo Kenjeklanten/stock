@@ -76,8 +76,13 @@ niet bevat. Er blijft altijd minstens één code met volledige toegang bestaan; 
 buiten, zet dan `APP_PIN` als variabele op het Pages-project.
 
 **Een Google-account**, voor wie de tool beheert. Dat loopt via Cloudflare Access: wie aanmeldt met
-een adres van `ADMIN_DOMAIN` (standaard `kenjeklanten.be`) krijgt volledige toegang, zonder code.
-De knop staat op het aanmeldscherm zodra `ACCESS_TEAM_DOMAIN` gezet is.
+een adres van `ADMIN_DOMAIN` (standaard `kenjeklanten.be`) krijgt standaard volledige toegang,
+zonder code. De knop staat op het aanmeldscherm zodra `ACCESS_TEAM_DOMAIN` gezet is.
+
+Wil je iemand beperken tot één bedrijf, zet zijn adres dan in **Beheer → Toegang → Beheerders met
+een Google-account**. Wie daar staat, mag enkel wat er in zijn rij staat; wie er niet staat, mag
+alles. Een adres weer uit die lijst halen geeft die persoon dus opnieuw toegang tot alles — het is
+geen manier om iemand buiten te zetten. Dat doe je bij de Access-policy in Cloudflare.
 
 ### Cloudflare Access instellen (eenmalig)
 
