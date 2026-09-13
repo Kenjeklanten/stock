@@ -103,6 +103,20 @@ die naar `/cdn-cgi/access/logout` wijst.
 
 Zolang `ACCESS_TEAM_DOMAIN` niet gezet is, blijft de knop verborgen en werkt alles op codes.
 
+De variabelen komen op het Pages-project te staan bij de **eerstvolgende deploy**, niet op het
+moment dat je ze als secret zet. Verschijnt de knop niet, kijk dan eerst of er sindsdien een
+deploy gedraaid heeft.
+
+Lokaal testen kan met een bestand `.dev.vars` naast `package.json` (staat in `.gitignore`):
+
+```
+ACCESS_TEAM_DOMAIN="jeconcept.cloudflareaccess.com"
+ADMIN_DOMAIN="kenjeklanten.be"
+```
+
+Daarmee verschijnt de knop op `/login`; echt aanmelden lukt lokaal niet, want Access staat enkel
+voor het adres op internet.
+
 ## De volgorde van lijsten
 
 Locaties, leveranciers, producten en bedrijven staan in de volgorde waarin ze op het telformulier
