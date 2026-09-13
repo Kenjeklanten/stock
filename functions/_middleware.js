@@ -1,17 +1,24 @@
 /**
- * Toegangscontrole voor de volledige besteltool (ook de HTML-pagina's).
+ * Wie komt er binnen, en als wie?
  *
- * De tool hoort achter een Cloudflare Access-policy (Zero Trust) te staan. Access zet dan bij
- * elk verzoek een JWT in de cookie `CF_Authorization` / header `Cf-Access-Jwt-Assertion`.
- * Deze middleware verifieert die handtekening zelf, zodat de app ook veilig blijft als iemand
- * het onderliggende *.pages.dev-adres rechtstreeks probeert te bereiken.
+ * Er zijn twee deuren:
+ *
+ *   1. Een cijfercode (zie _lib/pin.js). Dat is de deur voor wie aan de toog telt: geen account
+ *      nodig, en de code bepaalt meteen wat iemand mag.
+ *   2. Een Google-account via Cloudflare Access, voor wie de tool beheert. Access laat enkel
+ *      adressen van één domein door (ADMIN_DOMAIN, standaard kenjeklanten.be) en zet bij elk
+ *      verzoek een ondertekende JWT in de cookie `CF_Authorization`. Die handtekening rekenen we
+ *      hier zelf na, zodat het ook klopt als iemand het *.pages.dev-adres rechtstreeks probeert.
+ *      Een geldige Access-sessie met zo'n adres geeft volledige toegang; er is dan geen code nodig.
+ *
+ * Access wordt aangezet op één enkel pad — /aanmelden. Wie daarheen gaat, krijgt het
+ * aanmeldscherm van Google; de rest van de tool blijft bereikbaar met een code. Zo staat niemand
+ * die enkel telt voor een gesloten deur.
  *
  * Variabelen (Cloudflare Pages → Settings → Variables and secrets):
- *   ACCESS_TEAM_DOMAIN  bv. "jeconcept.cloudflareaccess.com"   → zonder deze variabele draait de tool open (enkel voor lokaal testen)
- *   ACCESS_AUD          Application Audience (AUD) tag van de Access-applicatie
- *
- * Access zegt enkel wíé er binnenkomt; wat die persoon mag, hangt af van de toegangscode
- * (zie _lib/pin.js en _lib/access.js).
+ *   ACCESS_TEAM_DOMAIN  bv. "jeconcept.cloudflareaccess.com" — leeg = geen Google-aanmelding
+ *   ACCESS_AUD          Application Audience (AUD) van de Access-applicatie op /aanmelden
+ *   ADMIN_DOMAIN        het domein dat volledige toegang krijgt, standaard kenjeklanten.be
  */
 import { json } from './_lib/http.js';
 import { activeCodes, sessionCode } from './_lib/pin.js';
@@ -80,7 +87,7 @@ function cookie(request, name) {
  * Geeft { gate } terug als het verzoek geweigerd wordt, of { code } met de code waarmee deze
  * browser binnen is — die bepaalt verderop mee welke rechten er gelden.
  */
-const OPEN_PADEN = ['/login', '/css/', '/js/', '/icon-', '/favicon.svg', '/manifest.webmanifest', '/sw.js'];
+const OPEN_PADEN = ['/login', '/aanmelden', '/css/', '/js/', '/icon-', '/favicon.svg', '/manifest.webmanifest', '/sw.js'];
 
 async function pinGate(request, env, url) {
   if (!env.DB) return {};
@@ -101,43 +108,56 @@ async function pinGate(request, env, url) {
   return { gate: new Response(null, { status: 302, headers: { location: `/login?next=${terug}`, 'cache-control': 'no-store' } }) };
 }
 
+/** Het domein waarvan een Google-account volledige toegang krijgt. */
+const beheerDomein = (env) => String(env.ADMIN_DOMAIN || 'kenjeklanten.be').trim().toLowerCase();
+
+/**
+ * Is er een geldige Access-sessie, en hoort het adres bij het beheerdersdomein?
+ * Geeft het e-mailadres terug, of null. Een sessie van een ander domein telt niet mee: die
+ * persoon valt gewoon terug op de cijfercode.
+ */
+async function accessBeheerder(request, env) {
+  const team = String(env.ACCESS_TEAM_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+  if (!team) return null;
+  const token = request.headers.get('cf-access-jwt-assertion') || cookie(request, 'CF_Authorization');
+  if (!token) return null;
+  let payload = null;
+  try {
+    payload = await verifyToken(token, team, env.ACCESS_AUD);
+  } catch (err) {
+    console.error('Access-verificatie mislukt:', err.message);
+    return null;
+  }
+  if (!payload) return null;
+  const email = String(payload.email || payload.common_name || '').toLowerCase();
+  return email.endsWith(`@${beheerDomein(env)}`) ? email : null;
+}
+
 export async function onRequest(context) {
   const { request, env, next, data } = context;
   const url = new URL(request.url);
-  const team = String(env.ACCESS_TEAM_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
 
-  if (!team) {
-    // Geen Access geconfigureerd: enkel de toegangscode beschermt de tool.
-    const { gate, code } = await pinGate(request, env, url);
-    if (gate) return gate;
+  // Aangemeld met een Google-account van het beheerdersdomein: volledige toegang, geen code.
+  const beheerder = await accessBeheerder(request, env);
+  if (beheerder) {
     data.user = {
-      email: request.headers.get('cf-access-authenticated-user-email') || '',
-      protected: false, code: code || null,
+      email: beheerder,
+      protected: true,
+      admin_login: true,
+      code: { label: beheerder, role: 'beheerder', company_id: null },
     };
     return next();
   }
 
-  const token = request.headers.get('cf-access-jwt-assertion') || cookie(request, 'CF_Authorization');
-  let payload = null;
-  try {
-    if (token) payload = await verifyToken(token, team, env.ACCESS_AUD);
-  } catch (err) {
-    console.error('Access-verificatie mislukt:', err.message);
-  }
-
-  if (!payload) {
-    const message = 'Geen geldige Cloudflare Access-sessie. Meld je aan via het beveiligde adres van de besteltool.';
-    if (url.pathname.startsWith('/api/')) return json({ error: message }, 403);
-    return new Response(
-      `<!doctype html><html lang="nl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
-      `<title>Geen toegang — Besteltool</title><style>body{font:16px/1.6 system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#0f172a;color:#e2e8f0}` +
-      `div{max-width:32rem;padding:2rem;text-align:center}a{color:#7dd3fc}</style><div><h1>Geen toegang</h1><p>${message}</p></div></html>`,
-      { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
-  }
-
   const { gate, code } = await pinGate(request, env, url);
   if (gate) return gate;
-
-  data.user = { email: payload.email || payload.common_name || '', protected: true, code: code || null };
+  data.user = {
+    email: '',
+    protected: false,
+    admin_login: false,
+    admin_login_available: !!env.ACCESS_TEAM_DOMAIN,
+    admin_domain: beheerDomein(env),
+    code: code || null,
+  };
   return next();
 }

@@ -101,3 +101,17 @@ test('codes beheren kan enkel met een code voor volledige toegang', async () => 
   const chef = met({ label: 'Beheer STVV', role: 'beheerder', company_id: ids.a });
   assert.equal((await codesApi.onRequestGet(ctx(env, { user: chef }))).status, 403);
 });
+
+test('een Google-aanmelding van het beheerdersdomein geeft volledige toegang', async () => {
+  const env = newEnv();
+  await tweeBedrijven(env);
+  // zo zet de middleware het klaar na een geldige Access-sessie
+  const beheerder = {
+    email: 'jasper@kenjeklanten.be', protected: true, admin_login: true,
+    code: { label: 'jasper@kenjeklanten.be', role: 'beheerder', company_id: null },
+  };
+  const cat = await asJson(await catalogApi.onRequestGet(ctx(env, { url: 'https://x/api/catalog', user: beheerder })));
+  assert.equal(cat.companies.length, 2, 'ziet alle bedrijven');
+  assert.equal(cat.user.manageable, 'all');
+  assert.equal((await codesApi.onRequestGet(ctx(env, { user: beheerder }))).status, 200, 'mag ook de codes beheren');
+});

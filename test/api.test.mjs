@@ -658,3 +658,34 @@ test('een beweging kan niet naar een product van een ander bedrijf', async () =>
   assert.equal(res.status, 400);
   assert.match((await asJson(res)).error, /hoort niet bij dit bedrijf/);
 });
+
+test('Access laat enkel het beheerdersdomein binnen', async () => {
+  const { onRequest } = await import('../functions/_middleware.js');
+  const env = { DB: createDb(schema), ACCESS_TEAM_DOMAIN: 'jeconcept.cloudflareaccess.com', ADMIN_DOMAIN: 'kenjeklanten.be' };
+
+  // Zonder geldige Access-cookie valt alles terug op de cijfercode: een paginaoproep gaat
+  // naar het aanmeldscherm, en dat scherm blijft zelf bereikbaar.
+  const paginaZonder = await onRequest({
+    request: new Request('https://stock.test/dashboard', { headers: { accept: 'text/html' } }),
+    env, data: {}, next: () => new Response('ok'),
+  });
+  assert.equal(paginaZonder.status, 302);
+  assert.match(paginaZonder.headers.get('location'), /^\/login\?next=/);
+
+  const aanmeldscherm = await onRequest({
+    request: new Request('https://stock.test/login', { headers: { accept: 'text/html' } }),
+    env, data: {}, next: () => new Response('ok'),
+  });
+  assert.equal(aanmeldscherm.status, 200, 'het aanmeldscherm zelf blijft open');
+
+  // Een verzonnen JWT komt er niet door: de handtekening wordt bij Cloudflare nagerekend.
+  const data = {};
+  const metVervalsteCookie = await onRequest({
+    request: new Request('https://stock.test/dashboard', {
+      headers: { accept: 'text/html', cookie: 'CF_Authorization=nep.nep.nep' },
+    }),
+    env, data, next: () => new Response('ok'),
+  });
+  assert.equal(metVervalsteCookie.status, 302, 'geen geldige sessie, dus gewoon naar het aanmeldscherm');
+  assert.ok(!data.user || !data.user.admin_login);
+});

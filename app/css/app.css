@@ -317,6 +317,27 @@ td select { padding-right: 30px; background-position: right 8px center; backgrou
 .login__intro { color: var(--text-muted); font-size: var(--text-body-sm); margin-bottom: var(--space-5); }
 .login__foot { color: var(--text-muted); font-size: var(--text-caption); margin-top: var(--space-4); }
 
+/* Aanmelden met een Google-account: voor wie de tool beheert. */
+.login__admin { margin-bottom: var(--space-5); }
+.btn--google {
+  width: 100%; background: var(--surface-card); color: var(--text-strong);
+  border: var(--border-regular) solid var(--border-soft); box-shadow: var(--shadow-sm);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+}
+.btn--google:hover { background: var(--surface-sunken); color: var(--text-strong); }
+.btn__g {
+  width: 1.4rem; height: 1.4rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--je-navy-100); color: var(--action-primary); font-weight: var(--weight-black);
+  font-size: var(--text-caption);
+}
+.login__of {
+  display: flex; align-items: center; gap: var(--space-3);
+  color: var(--text-muted); font-size: var(--text-caption); margin-top: var(--space-4);
+}
+.login__of::before, .login__of::after {
+  content: ''; flex: 1; height: 1px; background: var(--border-soft);
+}
+
 /* De vakjes zijn de weergave; het echte invoerveld ligt er onzichtbaar overheen. */
 .code { position: relative; display: flex; gap: var(--space-2); justify-content: center; }
 .code input {

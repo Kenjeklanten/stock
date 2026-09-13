@@ -245,7 +245,11 @@ export async function mountHeader(active) {
   if (who && data.user) {
     clear(who);
     const code = data.user.code;
-    if (code) {
+    if (data.user.admin_login) {
+      // aangemeld met een Google-account: afmelden gaat via Cloudflare Access
+      who.append(el('span', { text: data.user.email }), ' ');
+      who.append(el('a', { class: 'linkish', href: '/cdn-cgi/access/logout', text: 'afmelden' }));
+    } else if (code) {
       who.append(el('span', { text: code.label }), ' ');
       who.append(el('button', {
         class: 'linkish', text: 'andere code',

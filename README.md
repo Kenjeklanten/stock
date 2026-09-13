@@ -61,8 +61,10 @@ de rekening opnieuw.
 
 ## Toegang
 
-Alles loopt via **cijfercodes**; er zijn geen gebruikers of e-mailadressen. Elke code draagt haar
-eigen rechten (Beheer → Toegang):
+Er zijn twee deuren.
+
+**Een cijfercode**, voor wie aan de toog telt. Geen account nodig; de code bepaalt meteen wat
+iemand mag (Beheer → Toegang):
 
 | | rol `teller` | rol `beheerder` |
 |---|---|---|
@@ -73,8 +75,33 @@ De browser onthoudt een ingevoerde code dertig dagen, via een ondertekende cooki
 niet bevat. Er blijft altijd minstens één code met volledige toegang bestaan; sluit je jezelf toch
 buiten, zet dan `APP_PIN` als variabele op het Pages-project.
 
-Staat de tool achter Cloudflare Access, dan is dat een tweede slot ervoor — Access bepaalt wie
-binnen mag, de code bepaalt wat je mag.
+**Een Google-account**, voor wie de tool beheert. Dat loopt via Cloudflare Access: wie aanmeldt met
+een adres van `ADMIN_DOMAIN` (standaard `kenjeklanten.be`) krijgt volledige toegang, zonder code.
+De knop staat op het aanmeldscherm zodra `ACCESS_TEAM_DOMAIN` gezet is.
+
+### Cloudflare Access instellen (eenmalig)
+
+Access staat voor **één enkel pad**: `/aanmelden`. Zo krijgt wie enkel telt nooit een
+Google-aanmeldscherm te zien, terwijl een beheerder zich in één klik aanmeldt — de cookie die
+Access daarna zet, geldt voor het hele domein, en de tool leest ze op elk scherm.
+
+1. Cloudflare-dashboard → **Zero Trust** → *Settings* → *Authentication* → **Add new** → **Google**
+   (of *Google Workspace*). Volg de stappen; je hebt daarvoor een OAuth-client in de Google Cloud
+   Console nodig. Test de aanmeldmethode.
+2. **Zero Trust** → *Access controls* → *Applications* → **Add an application** → *Self-hosted*.
+   * Naam: `Besteltool beheer`
+   * Domein: `stock.jeconcept.be`, **pad**: `aanmelden`
+   * Identity provider: enkel **Google** aanvinken.
+3. Policy: *Allow* → *Include* → **Emails ending in** → `@kenjeklanten.be`.
+4. Noteer bij de applicatie de **Application Audience (AUD) tag**, en bij *Settings* je
+   **team domain** (`<team>.cloudflareaccess.com`).
+5. Zet die als GitHub secrets: `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN` en desgewenst `ADMIN_DOMAIN`.
+   De volgende deploy zet ze op het Pages-project.
+
+Daarna staat er op `/login` een knop **Aanmelden met Google**. Afmelden gaat via de link bovenaan,
+die naar `/cdn-cgi/access/logout` wijst.
+
+Zolang `ACCESS_TEAM_DOMAIN` niet gezet is, blijft de knop verborgen en werkt alles op codes.
 
 ## De volgorde van lijsten
 
@@ -138,7 +165,8 @@ app/
   js/                  vanilla modules per scherm + xlsx-read.js (kassabestand inlezen)
   sw.js                service worker: de tool blijft werken zonder bereik
 functions/
-  _middleware.js       toegangscode controleren, en de Cloudflare Access-JWT als die er is
+  _middleware.js       toegangscode controleren, en de Cloudflare Access-JWT van een beheerder
+  aanmelden.js         het pad waar Access voor staat; stuurt na aanmelden door
   _lib/                rekenregel, D1-queries, CSV, PDF-schrijver, XLSX-schrijver, bestellijst, verkoop
   api/                 /api/catalog, /api/counts…, /api/sales…, /api/export/xlsx, /api/admin/…
 scripts/dev-db.mjs     schema (en seed) op de lokale D1 zetten
@@ -170,40 +198,33 @@ Zet in deze repository de **GitHub secrets**:
 |---|---|
 | `CLOUDFLARE_API_TOKEN` | API-token met *Cloudflare Pages: Edit* **en** *D1: Edit* |
 | `CLOUDFLARE_ACCOUNT_ID` | Account-ID uit het Cloudflare-dashboard |
-| `ACCESS_TEAM_DOMAIN` | bv. `jeconcept.cloudflareaccess.com` (zie hieronder) |
-| `ACCESS_AUD` | Application Audience-tag van de Access-applicatie |
+| `ACCESS_TEAM_DOMAIN` | bv. `jeconcept.cloudflareaccess.com` — zet de Google-aanmelding aan |
+| `ACCESS_AUD` | Application Audience-tag van de Access-applicatie op `/aanmelden` |
+| `ADMIN_DOMAIN` | optioneel: het domein dat volledige toegang krijgt (standaard `kenjeklanten.be`) |
 | `APP_PIN` | optioneel: een noodcode met volledige toegang |
 
 Staat de database nog in een oudere vorm (versie 1, van vóór de bedrijven), dan bouwt de deploy ze
 opnieuw op — maar alleen als er nog geen producten of tellingen in staan. Zit er wel data in, dan
 stopt de deploy met een melding in plaats van iets te wissen.
 
-### Cloudflare Access instellen (eenmalig)
+### Cloudflare Access
 
-1. Cloudflare-dashboard → **Zero Trust** → *Access* → *Applications* → **Add an application** →
-   *Self-hosted*.
-2. Domein: `jeconcept-stock.pages.dev` (en later je eigen domein, bv. `stock.jeconcept.be`).
-3. Policy: *Allow* → *Emails* met de adressen van wie mag tellen.
-4. Noteer bij de applicatie de **Application Audience (AUD) tag** en je **team domain**
-   (`<team>.cloudflareaccess.com`).
-5. Zet die als GitHub secrets: `ACCESS_AUD` en `ACCESS_TEAM_DOMAIN`. De volgende deploy zet ze op
-   het Pages-project. Wie wat mag binnen de tool, blijft een zaak van de toegangscodes.
-
-Zolang `ACCESS_TEAM_DOMAIN` niet gezet is, controleert de tool de Access-sessie niet zelf en toont
-ze bovenaan een waarschuwing. Access aan de rand blijft dan de enige beveiliging.
+Zie **Toegang** hierboven: Access staat enkel voor `/aanmelden` en dient om beheerders met een
+Google-account binnen te laten. De rest van de tool werkt op cijfercodes.
 
 ### Eigen domein
 
-Pages → project `jeconcept-stock` → *Custom domains* → bv. `stock.jeconcept.be`. Voeg dat domein
-daarna ook toe aan de Access-applicatie.
+Pages → project `jeconcept-stock` → *Custom domains* → bv. `stock.jeconcept.be`. Gebruik datzelfde
+domein in de Access-applicatie op `/aanmelden`.
 
 ## Variabelen op het Pages-project
 
 | Variabele | Waarvoor |
 |---|---|
 | `DB` (D1-binding) | de database; wordt automatisch door de workflow gezet |
-| `ACCESS_TEAM_DOMAIN` | bv. `jeconcept.cloudflareaccess.com` — leeg = geen eigen JWT-controle |
-| `ACCESS_AUD` | Application Audience-tag van de Access-applicatie |
+| `ACCESS_TEAM_DOMAIN` | bv. `jeconcept.cloudflareaccess.com` — leeg = geen Google-aanmelding |
+| `ACCESS_AUD` | Application Audience-tag van de Access-applicatie op `/aanmelden` |
+| `ADMIN_DOMAIN` | het domein dat volledige toegang krijgt, standaard `kenjeklanten.be` |
 | `APP_PIN` | noodcode met volledige toegang, voor als je jezelf buitensluit |
 
 ## Back-up

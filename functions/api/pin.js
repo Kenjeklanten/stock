@@ -1,5 +1,7 @@
 /**
- * GET    /api/pin   → { required, unlocked, access }  access = wat deze code mag
+ * GET    /api/pin   → { required, unlocked, access, admin_login }
+ *                     access      = wat deze code mag
+ *                     admin_login = kan er met een Google-account aangemeld worden, en van welk domein
  * POST   /api/pin   { code } → cookie voor dertig dagen
  * DELETE /api/pin   → afmelden op dit toestel
  */
@@ -13,10 +15,20 @@ const describe = (code) => code && ({
   company_name: code.company_name || null,
 });
 
-export const onRequestGet = handler(async ({ request, env }) => {
+export const onRequestGet = handler(async ({ request, env, data }) => {
   const codes = await activeCodes(env, db(env));
   const current = codes.length ? await sessionCode(request, codes, env) : null;
-  return json({ required: codes.length > 0, unlocked: !codes.length || !!current, access: describe(current) });
+  const beheerder = !!(data.user && data.user.admin_login);
+  return json({
+    required: codes.length > 0,
+    unlocked: beheerder || !codes.length || !!current,
+    access: beheerder ? { label: data.user.email, role: 'beheerder', company_id: null } : describe(current),
+    admin_login: {
+      enabled: beheerder || !!(data.user && data.user.admin_login_available),
+      domain: (data.user && data.user.admin_domain) || '',
+      signed_in: beheerder,
+    },
+  });
 });
 
 export const onRequestPost = handler(async ({ request, env }) => {

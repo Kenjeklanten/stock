@@ -26,8 +26,16 @@
     <span class="login__wordmark">Besteltool <b>JE Concept</b></span>
   </div>
 
-  <h1>Toegangscode</h1>
-  <p class="login__intro">Toets de cijfercode van de besteltool. Welke code je gebruikt, bepaalt ook wat je te zien krijgt.</p>
+  <h1>Aanmelden</h1>
+  <p class="login__intro" id="login-intro">Toets de cijfercode van de besteltool. Welke code je gebruikt, bepaalt ook wat je te zien krijgt.</p>
+
+  <div class="login__admin hidden" id="admin-login">
+    <a class="btn btn--google" id="admin-link" href="/aanmelden">
+      <span class="btn__g" aria-hidden="true">G</span> Aanmelden met Google
+    </a>
+    <p class="small muted" id="admin-domain"></p>
+    <div class="login__of"><span>of met een code</span></div>
+  </div>
 
   <form id="code-form" novalidate>
     <div class="code" id="code-boxes">

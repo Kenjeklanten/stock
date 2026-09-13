@@ -81,11 +81,36 @@ async function probeer(event) {
 
 qs('#code-form').addEventListener('submit', probeer);
 
-// Is er helemaal geen code ingesteld, dan valt er hier niets te doen.
+/** Een mislukte Google-aanmelding komt hier terug met ?fout=… */
+function toonFout() {
+  const fout = new URLSearchParams(location.search).get('fout');
+  const domein = new URLSearchParams(location.search).get('domein') || 'het toegelaten domein';
+  if (fout === 'aanmelden-mislukt') {
+    melding.textContent = `Dat account hoort niet bij ${domein}. Gebruik een account van dat domein, of meld je aan met een code.`;
+  } else if (fout === 'aanmelden-uit') {
+    melding.textContent = 'Aanmelden met Google staat nog niet aan. Gebruik voorlopig een toegangscode.';
+  }
+}
+
+// Wie al binnen is, hoeft hier niet te staan; en staat de Google-knop aan, dan tonen we ze.
 fetch('/api/pin')
   .then((r) => r.json())
-  .then((d) => { if (d && (d.required === false || d.unlocked === true)) location.href = volgende(); })
+  .then((d) => {
+    if (!d) return;
+    if (d.required === false || d.unlocked === true) return void (location.href = volgende());
+    const knop = qs('#admin-login');
+    if (d.admin_login && d.admin_login.enabled && knop) {
+      knop.classList.remove('hidden');
+      qs('#admin-link').href = `/aanmelden?next=${encodeURIComponent(volgende())}`;
+      qs('#admin-domain').textContent = d.admin_login.domain
+        ? `Voor beheerders met een ${d.admin_login.domain}-account.` : '';
+      // met twee manieren om binnen te komen past de tekst bovenaan niet meer
+      qs('#login-intro').textContent = 'Beheerders melden zich aan met hun account; aan de toog gebruik je een cijfercode.';
+    }
+  })
   .catch(() => { /* geen verbinding: het scherm blijft gewoon staan */ });
+
+toonFout();
 
 teken();
 invoer.focus();
