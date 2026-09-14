@@ -134,6 +134,12 @@ De catalogus wordt rechtstreeks in de databank gezet, niet via een importscherm:
 producten, locaties, leveranciers en de basisstock per locatie van een bedrijf. Voor een nieuw
 bedrijf komt daar een gelijkaardig bestand bij, dat eenmalig uitgevoerd wordt op de databank.
 
+`seed-vinne.sql` is zo'n bestand: de volledige bestellijst van Bistro het Vinne — 12 leveranciers en
+142 producten, in de volgorde van de tabbladen van hun lijst. De dranken horen bij de Bar, de keuken-,
+droge-waren- en diepvriesartikelen bij de Keuken; verhuizen kan gewoon in Beheer. De basisstock komt
+uit de kolom *Minimum stock/week*. De dranken hebben die kolom niet en staan dus op 0: ze worden wel
+geteld, maar er wordt niets van besteld tot er een basisstock ingevuld is.
+
 ## De bestellijst in Excel
 
 `GET /api/export/xlsx?company_id=…&date=JJJJ-MM-DD` (of `?count_id=…`) geeft de bestellijst in
@@ -177,6 +183,7 @@ heeft de voorkeur boven een PNG: die blijft scherp op elk scherm en weegt bijna 
 ```
 schema.sql             D1-schema (idempotent; draait bij elke deploy)
 seed.sql               voorbeelddata om lokaal mee te spelen
+seed-vinne.sql         de catalogus van Bistro het Vinne (eenmalig op de databank)
 build.py               app/ → dist/ met een inhoudshash op CSS en JS
 app/
   css/tokens.css       het volledige design-system: kleuren, fonts, ruimte, vorm
