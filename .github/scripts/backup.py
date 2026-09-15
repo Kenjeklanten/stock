@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zet een volledige export van de D1-database in een R2-bucket.
+"""Zet een volledige back-up van de D1-database in een R2-bucket.
 
 Draait wekelijks vanuit .github/workflows/backup.yml (en met de hand via workflow_dispatch).
 Er komen twee bestanden in de bucket:
@@ -7,17 +7,26 @@ Er komen twee bestanden in de bucket:
     besteltool/besteltool-JJJJ-MM-DD.sql   de back-up van die dag
     besteltool/laatste.sql                 altijd de meest recente
 
+Terugzetten:
+    npx wrangler d1 execute besteltool --remote --file=laatste.sql
+
+De dump wordt met gewone queries opgebouwd (zie d1dump.py), niet met de export-API van D1:
+die werkt met pollen op een bookmark en gaf "Not currently exporting anything" terug zodra
+de export klaar was vóór de eerste poll.
+
 Omgeving: CF_TOKEN, CF_ACCOUNT, D1_NAME, R2_BUCKET.
-Het token heeft hiervoor D1:Read (of Edit) én R2:Edit nodig. Ontbreekt R2, dan stopt het
-script met een duidelijke melding in plaats van met een stacktrace.
+Het token heeft D1:Edit én R2:Edit nodig. Ontbreekt R2, dan stopt het script met een
+duidelijke melding in plaats van met een stacktrace.
 """
 import datetime
 import json
 import os
 import sys
-import time
 import urllib.error
 import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from d1dump import dump  # noqa: E402
 
 TOKEN = os.environ.get("CF_TOKEN", "").strip()
 ACCOUNT = os.environ.get("CF_ACCOUNT", "").strip()
@@ -66,33 +75,25 @@ if not database:
     sys.exit(f"Database '{D1_NAME}' bestaat niet.")
 uuid = database["uuid"]
 
-# 2. export vragen en afwachten --------------------------------------------------
-status, started = api("POST", f"/d1/database/{uuid}/export", {"output_format": "polling"})
-if not started.get("success"):
-    sys.exit(f"Export starten mislukt: {reasons(started)}")
 
-result = started.get("result") or {}
-bookmark = result.get("at_bookmark")
-signed = result.get("signed_url")
-waited = 0
-while not signed and waited < 300:
-    time.sleep(3)
-    waited += 3
-    status, polled = api("POST", f"/d1/database/{uuid}/export",
-                         {"output_format": "polling", "current_bookmark": bookmark})
-    if not polled.get("success"):
-        sys.exit(f"Export opvolgen mislukt: {reasons(polled)}")
-    result = polled.get("result") or {}
-    bookmark = result.get("at_bookmark", bookmark)
-    signed = result.get("signed_url")
-    if result.get("error"):
-        sys.exit(f"Export mislukt: {result['error']}")
-if not signed:
-    sys.exit("De export was na vijf minuten nog niet klaar.")
+# 2. de databank uitlezen --------------------------------------------------------
+def query(sql):
+    status, out = api("POST", f"/d1/database/{uuid}/query", {"sql": sql})
+    if not out.get("success"):
+        raise RuntimeError(f"Query mislukt ({sql[:70]}…): {reasons(out)}")
+    blokken = out.get("result") or []
+    return (blokken[0].get("results") or []) if blokken else []
 
-with urllib.request.urlopen(signed) as res:
-    dump = res.read()
-print(f"Export klaar: {len(dump) / 1024:.1f} kB SQL.")
+
+try:
+    sql, rijen = dump(query)
+except RuntimeError as err:
+    sys.exit(f"Back-up mislukt: {err}")
+
+payload = sql.encode("utf-8")
+print(f"Dump klaar: {len(payload) / 1024:.1f} kB SQL, {rijen} rijen.")
+if len(payload) < 500:
+    sys.exit("De dump is verdacht klein; er wordt niets weggeschreven.")
 
 # 3. in R2 zetten ----------------------------------------------------------------
 status, made = api("POST", "/r2/buckets", {"name": BUCKET})
@@ -105,7 +106,7 @@ else:
 
 today = datetime.date.today().isoformat()
 for key in (f"besteltool/besteltool-{today}.sql", "besteltool/laatste.sql"):
-    status, put = api("PUT", f"/r2/buckets/{BUCKET}/objects/{key}", raw=dump, content_type="application/sql")
+    status, put = api("PUT", f"/r2/buckets/{BUCKET}/objects/{key}", raw=payload, content_type="application/sql")
     if put.get("success"):
         print(f"Bewaard als r2://{BUCKET}/{key}")
     else:

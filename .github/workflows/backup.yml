@@ -4,6 +4,11 @@
 # 'laatste.sql'. Terugzetten gaat met:
 #   npx wrangler d1 execute besteltool --remote --file=laatste.sql
 #
+# De dump wordt met gewone queries opgebouwd, niet met de export-API van D1: die werkt met
+# pollen op een bookmark en gaf "Not currently exporting anything" terug zodra de export klaar
+# was vóór de eerste poll. Vóór elke back-up draait er een rondrit-test die bewijst dat een
+# dump de databank identiek terugzet.
+#
 # Het API-token heeft hiervoor 'R2: Edit' nodig naast de rechten voor Pages en D1.
 # Ontbreekt dat, dan stopt de workflow met een duidelijke melding.
 name: Back-up databank
@@ -26,6 +31,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Nakijken of een dump wel identiek terugzet
+        run: python3 .github/scripts/d1dump_test.py
       - name: Exporteren en wegschrijven
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

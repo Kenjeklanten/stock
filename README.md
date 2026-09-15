@@ -276,11 +276,32 @@ domein in de Access-applicatie op `/aanmelden`.
 
 ## Back-up
 
-Elke maandagochtend zet `.github/workflows/backup.yml` een volledige export van de databank in een
+Elke maandagochtend zet `.github/workflows/backup.yml` een volledige kopie van de databank in een
 R2-bucket: één bestand per week plus `laatste.sql`. Het API-token heeft daarvoor `R2: Edit` nodig
-naast de rechten voor Pages en D1.
+naast de rechten voor Pages en D1. Draaien kan ook met de hand, via *Run workflow* op het tabblad
+Actions.
 
-Met de hand kan het ook:
+De dump wordt opgebouwd met gewone queries (`.github/scripts/d1dump.py`): schema uit
+`sqlite_master`, rijen per tabel, en de tellers van `AUTOINCREMENT` erbij zodat een teruggezette
+databank geen id's hergebruikt. De export-API van D1 wordt bewust niet gebruikt: die werkt met
+pollen op een bookmark en antwoordt "Not currently exporting anything" zodra de export klaar is
+vóór de eerste poll — waar de back-up eerder op vastliep.
+
+Vóór elke back-up draait `.github/scripts/d1dump_test.py`: die bouwt een databank uit `schema.sql`,
+dumpt ze, zet de dump terug in een lege databank en vergelijkt rijen, indexen en id-tellers. Loopt
+dat mis, dan wordt er geen back-up weggeschreven. Je kan het zelf draaien:
+
+```bash
+python3 .github/scripts/d1dump_test.py
+```
+
+Terugzetten doe je met het bestand uit de bucket:
+
+```bash
+npx wrangler d1 execute besteltool --remote --file=laatste.sql
+```
+
+Met de hand een kopie maken kan ook:
 
 ```bash
 npx wrangler d1 export besteltool --remote --output=besteltool.sql   # back-up
