@@ -24,6 +24,9 @@ def waarde(v):
     if isinstance(v, int):
         return str(v)
     if isinstance(v, float):
+        if v != v or v in (float("inf"), float("-inf")):
+            # sqlite bewaart ze, SQL-tekst kent ze niet; liever luid stuk dan een stille fout
+            raise RuntimeError(f"Onmogelijke waarde in de databank: {v!r}")
         return repr(v)
     if isinstance(v, (bytes, bytearray)):
         return "X'" + bytes(v).hex() + "'"
