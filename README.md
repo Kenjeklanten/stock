@@ -31,7 +31,7 @@ Voorbeeld: basisstock 48 flessen, bak van 24, geteld 1 pak + 6 los = 30 → teko
 
 | Pagina | Waarvoor |
 |---|---|
-| `/dashboard` | Overzicht van de dag: welke locaties geteld zijn, wat er vandaag te bestellen is per leverancier, welke leveringen nog nagekeken moeten worden. |
+| `/dashboard` | Overzicht van de dag: welke locaties geteld zijn, wat er vandaag te bestellen is per leverancier, en elke levering die nog nagekeken moet worden — ook als er nog niet op "markeer als besteld" geduwd is. |
 | `/` | Bedrijf en locatie kiezen, per product de volle pakken en losse stuks invullen. Toont meteen wat besteld wordt. Werkt ook zonder verbinding. |
 | `/bestelling?id=…` | Het resultaat: bestelregels per leverancier, met de bestellijst in Excel (één telling of de hele dag), de bestelbon in PDF, CSV en "markeer als besteld". |
 | `/leveringen` | Alle bestellingen die nog nagekeken moeten worden, en de leveringen die al afgesloten zijn met hun afwijkingen. |

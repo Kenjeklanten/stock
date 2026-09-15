@@ -7,23 +7,7 @@
  */
 import { json, handler, db, int, HttpError } from '../_lib/http.js';
 import { scopeFor, requireCompany, visibleCompanies } from '../_lib/access.js';
-
-/** Per telling: hoeveel bestelregels, hoeveel daarvan nagekeken, en hoeveel er niet klopten. */
-const KOLOMMEN = `
-  SELECT c.id, c.counted_on, c.status, c.ordered_at, c.received_at, c.received_by,
-         c.location_id, l.name AS location_name,
-         (SELECT COUNT(*) FROM count_lines cl
-           WHERE cl.count_id = c.id AND cl.order_qty > 0) AS order_lines,
-         (SELECT COUNT(*) FROM count_lines cl
-           WHERE cl.count_id = c.id AND cl.order_qty > 0 AND cl.received_qty IS NOT NULL) AS checked_lines,
-         (SELECT COUNT(*) FROM count_lines cl
-           WHERE cl.count_id = c.id AND cl.order_qty > 0 AND cl.received_qty IS NOT NULL
-             AND cl.received_qty <> cl.order_qty) AS diff_lines,
-         (SELECT COUNT(DISTINCT IFNULL(p.supplier_id, 0)) FROM count_lines cl
-            LEFT JOIN products p ON p.id = cl.product_id
-           WHERE cl.count_id = c.id AND cl.order_qty > 0) AS supplier_count
-    FROM counts c JOIN locations l ON l.id = c.location_id
-   WHERE c.company_id = ?1`;
+import { openLeveringen, nagekekenLeveringen } from '../_lib/delivery.js';
 
 export const onRequestGet = handler(async ({ request, env, data }) => {
   const D = db(env);
@@ -39,25 +23,9 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
   }
   requireCompany(scope, companyId);
 
-  const [teDoen, gedaan] = await Promise.all([
-    // nog na te kijken: er is besteld, maar de levering is nog niet afgesloten
-    D.prepare(
-      `SELECT * FROM (${KOLOMMEN} AND c.received_at IS NULL)
-        WHERE order_lines > 0
-        ORDER BY counted_on DESC, id DESC LIMIT 50`
-    ).bind(companyId).all(),
-
-    // afgesloten leveringen, de jongste eerst
-    D.prepare(
-      `SELECT * FROM (${KOLOMMEN} AND c.received_at IS NOT NULL)
-        WHERE order_lines > 0
-        ORDER BY received_at DESC, id DESC LIMIT 25`
-    ).bind(companyId).all(),
+  const [open, done] = await Promise.all([
+    openLeveringen(D, companyId),
+    nagekekenLeveringen(D, companyId),
   ]);
-
-  return json({
-    company_id: companyId,
-    open: teDoen.results || [],
-    done: gedaan.results || [],
-  });
+  return json({ company_id: companyId, open, done });
 });

@@ -98,19 +98,35 @@ function bewegingen(data) {
     }))));
 }
 
+/** Hoever staat het nakijken van deze bestelling? */
+function stand(o) {
+  if (o.checked_lines >= o.order_lines) return el('span', { class: 'tag tag--mint', text: 'alles nagekeken' });
+  if (o.checked_lines) return el('span', { class: 'tag tag--sun', text: `${o.checked_lines} van ${o.order_lines} nagekeken` });
+  if (o.status === 'besteld') {
+    return el('span', { class: 'tag tag--sun', text: o.ordered_at ? `besteld op ${dateNl(o.ordered_at.slice(0, 10))}` : 'besteld' });
+  }
+  return el('span', { class: 'muted', text: 'nog niet als besteld gemarkeerd' });
+}
+
 function leveringen(data) {
   if (!data.open_orders.length) return null;
   const rows = data.open_orders.map((o) => el('tr', {}, [
-    el('td', { text: o.location_name }),
+    el('td', {}, [el('a', { href: `/bestelling?id=${o.id}`, text: o.location_name })]),
     el('td', { text: dateNl(o.counted_on) }),
     el('td', { class: 'num', text: plural(o.order_lines, 'regel', 'regels') }),
-    el('td', {}, [el('a', { class: 'btn btn--sm btn--secondary', href: `/ontvangst?id=${o.id}`, text: 'Levering inboeken' })]),
+    el('td', {}, [stand(o)]),
+    el('td', {}, [el('a', {
+      class: 'btn btn--sm btn--secondary',
+      href: `/ontvangst?id=${o.id}`,
+      text: o.checked_lines ? 'Verder inboeken' : 'Levering inboeken',
+    })]),
   ]));
-  return card('Besteld, nog niet nagekeken',
+  return card('Leveringen om na te kijken',
+    el('p', { class: 'small muted', text: 'Alles waar iets op te bestellen stond en wat nog niet afgesloten is.' }),
     el('div', { class: 'table-wrap' }, [el('table', {}, [
       el('thead', {}, [el('tr', {}, [
         el('th', { text: 'Locatie' }), el('th', { text: 'Telling van' }),
-        el('th', { class: 'num', text: 'Bestelregels' }), el('th', { text: '' }),
+        el('th', { class: 'num', text: 'Bestelregels' }), el('th', { text: 'Stand' }), el('th', { text: '' }),
       ])]),
       el('tbody', {}, rows),
     ])]),

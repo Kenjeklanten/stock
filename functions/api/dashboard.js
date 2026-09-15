@@ -8,6 +8,7 @@ import { json, handler, db, int, today, HttpError } from '../_lib/http.js';
 import { scopeFor, requireCompany, visibleCompanies } from '../_lib/access.js';
 import { orderPacks, receiptDiff, round2 } from '../_lib/order.js';
 import { huidigeStock } from '../_lib/stock.js';
+import { openLeveringen } from '../_lib/delivery.js';
 
 export const onRequestGet = handler(async ({ request, env, data }) => {
   const D = db(env);
@@ -47,14 +48,9 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
         ORDER BY l.sort, l.name`
     ).bind(companyId, day).all(),
 
-    // besteld maar nog niet nagekeken
-    D.prepare(
-      `SELECT c.id, c.counted_on, c.ordered_at, l.name AS location_name,
-              (SELECT COUNT(*) FROM count_lines cl WHERE cl.count_id = c.id AND cl.order_qty > 0) AS order_lines
-         FROM counts c JOIN locations l ON l.id = c.location_id
-        WHERE c.company_id = ?1 AND c.status = 'besteld'
-        ORDER BY c.counted_on DESC, c.id DESC LIMIT 20`
-    ).bind(companyId).all(),
+    // alles waar iets op te bestellen stond en wat nog niet nagekeken is — ook wanneer
+    // niemand op "markeer als besteld" geduwd heeft, want die levering komt er even goed aan
+    openLeveringen(D, companyId, { limit: 20 }),
 
     // wat er vandaag nog besteld moet worden, opgeteld over alle open tellingen van vandaag
     D.prepare(
@@ -145,7 +141,7 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
     locations: locations.results || [],
     counted_today: recent.results || [],
     not_counted_today: missing.map((l) => ({ id: l.id, name: l.name })),
-    open_orders: openOrders.results || [],
+    open_orders: openOrders,
     stock: [...perLocatie.values()],
     stock_totaal: round2(stock.reduce((a, r) => a + r.nu, 0)),
     moves: bewegingen.results || [],

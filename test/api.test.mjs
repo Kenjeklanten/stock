@@ -513,12 +513,18 @@ test('overzicht: wat er vandaag geteld en te bestellen is', async () => {
   assert.equal(drank.lines.find((l) => l.product_name === 'Cola 33cl').order_qty, 24, '48 basis − 24 geteld = 1 bak');
   assert.equal(drank.lines.find((l) => l.product_name === 'Chips paprika').order_qty, 15);
 
-  // eens besteld verdwijnt ze uit 'te bestellen' en verschijnt ze bij 'na te kijken'
+  // ook zonder "markeer als besteld" staat de levering al klaar om na te kijken
+  assert.equal(dash.open_orders.length, 1, 'een bestelling die nog niet doorgegeven is, blijft zichtbaar');
+  assert.equal(dash.open_orders[0].status, 'open');
+  assert.equal(dash.open_orders[0].order_lines, 2);
+
+  // eens besteld verdwijnt ze uit 'te bestellen' en blijft ze bij 'na te kijken'
   await countApi.onRequestPatch(ctx(env, { method: 'PATCH', params: { id: String(id) }, body: { status: 'besteld' } }));
   dash = await asJson(await dashboardApi.onRequestGet(ctx(env, { url: `https://x/api/dashboard?company_id=${ids.co}` })));
   assert.equal(dash.to_order.length, 0);
   assert.equal(dash.open_orders.length, 1);
   assert.equal(dash.open_orders[0].location_name, 'Bar tribune 1');
+  assert.equal(dash.open_orders[0].status, 'besteld');
 
   // een levering die niet klopt, komt in het overzicht
   await receiptApi.onRequestPut(ctx(env, {
