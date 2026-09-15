@@ -21,7 +21,8 @@ export const onRequestPut = handler(async ({ params, request, env, data }) => {
   const input = (await body(request)) || {};
   await saveReceipt(D, id, input.lines, {
     complete: input.complete === true,
-    by: (data.user && data.user.email) || '',
+    // aan de toog wordt met een code gewerkt; dan is het label van die code de beste naam
+    by: (data.user && (data.user.email || (data.user.code && data.user.code.label))) || '',
   });
 
   const detail = await loadCount(D, id);

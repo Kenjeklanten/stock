@@ -61,7 +61,7 @@ def main(target="dist"):
     # worden; zo werkt de tool offline en hangt niemand op een oude versie.
     worker = out / "sw.js"
     if worker.exists():
-        shell = ["/", "/dashboard", "/stock", "/historiek", "/beheer", "/bestelling", "/ontvangst",
+        shell = ["/", "/dashboard", "/stock", "/leveringen", "/historiek", "/beheer", "/bestelling", "/ontvangst",
                  "/verkoop", "/login",
                  "/favicon.svg", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"]
         shell += sorted(f"/{a.relative_to(out).as_posix()}?v={version}" for a in assets)

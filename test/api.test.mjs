@@ -20,6 +20,7 @@ import * as csvApi from '../functions/api/counts/[id]/csv.js';
 import * as pdfApi from '../functions/api/counts/[id]/pdf.js';
 import * as xlsxApi from '../functions/api/export/xlsx.js';
 import * as receiptApi from '../functions/api/counts/[id]/receipt.js';
+import * as deliveriesApi from '../functions/api/deliveries.js';
 import * as codesApi from '../functions/api/admin/codes.js';
 import * as dashboardApi from '../functions/api/dashboard.js';
 import * as salesApi from '../functions/api/sales.js';
@@ -413,6 +414,58 @@ test('ontvangstcontrole: geleverde aantallen en het verschil met de bestelling',
   const csv = await (await csvApi.onRequestGet(ctx(env, { params: { id: String(id) }, url: 'https://x/api/counts/1/csv' }))).text();
   assert.match(csv, /Geleverd/);
   assert.match(csv, /-24/);
+});
+
+test('leveringenoverzicht: wat nog nagekeken moet worden, en wat af is', async () => {
+  const env = newEnv();
+  const ids = await seed(env);
+  const url = `https://x/api/deliveries?company_id=${ids.co}`;
+
+  // een telling zonder tekorten levert geen bestelling op en hoort dus niet in de lijst
+  await countsApi.onRequestPost(ctx(env, {
+    method: 'POST',
+    body: { location_id: ids.loc2, lines: [{ product_id: ids.cola, packs: 1 }] },
+  }));
+  const leeg = await asJson(await deliveriesApi.onRequestGet(ctx(env, { url })));
+  assert.deepEqual(leeg.open, [], 'niets besteld, niets na te kijken');
+  assert.deepEqual(leeg.done, []);
+
+  // een telling met tekorten wél
+  const { id } = await asJson(await countsApi.onRequestPost(ctx(env, {
+    method: 'POST',
+    body: { location_id: ids.loc, lines: [
+      { product_id: ids.cola, packs: 0, loose: 0 },
+      { product_id: ids.chips, loose: 5 },
+    ] },
+  })));
+  const open1 = await asJson(await deliveriesApi.onRequestGet(ctx(env, { url })));
+  assert.equal(open1.open.length, 1);
+  assert.equal(open1.open[0].id, id);
+  assert.equal(open1.open[0].location_name, 'Bar tribune 1');
+  assert.equal(open1.open[0].order_lines, 2, 'cola en chips staan op de bestelling');
+  assert.equal(open1.open[0].checked_lines, 0, 'er is nog niets nagekeken');
+  assert.equal(open1.open[0].supplier_count, 1);
+
+  // halverwege het nakijken blijft ze openstaan, met de voortgang erbij
+  await receiptApi.onRequestPut(ctx(env, {
+    method: 'PUT', params: { id: String(id) },
+    body: { lines: [{ product_id: ids.cola, packs: 1, loose: 0 }] },
+  }));
+  const open2 = await asJson(await deliveriesApi.onRequestGet(ctx(env, { url })));
+  assert.equal(open2.open.length, 1, 'tussentijds bewaren sluit de levering niet af');
+  assert.equal(open2.open[0].checked_lines, 1);
+  assert.equal(open2.open[0].diff_lines, 1, 'een bak te weinig geleverd');
+
+  // afgesloten verhuist ze naar de afgehandelde leveringen
+  await receiptApi.onRequestPut(ctx(env, {
+    method: 'PUT', params: { id: String(id) }, body: { lines: [], complete: true },
+  }));
+  const na = await asJson(await deliveriesApi.onRequestGet(ctx(env, { url })));
+  assert.deepEqual(na.open, []);
+  assert.equal(na.done.length, 1);
+  assert.equal(na.done[0].id, id);
+  assert.equal(na.done[0].diff_lines, 1);
+  assert.ok(na.done[0].received_at);
 });
 
 test('toegangscodes beheren: de laatste volledige code blijft staan', async () => {

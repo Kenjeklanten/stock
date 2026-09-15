@@ -113,7 +113,8 @@ function leveringen(data) {
         el('th', { class: 'num', text: 'Bestelregels' }), el('th', { text: '' }),
       ])]),
       el('tbody', {}, rows),
-    ])]));
+    ])]),
+    el('div', { class: 'row mt-2' }, [el('a', { class: 'btn btn--ghost', href: '/leveringen', text: 'Alle leveringen' })]));
 }
 
 function verschillen(data) {

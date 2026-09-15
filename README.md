@@ -34,11 +34,32 @@ Voorbeeld: basisstock 48 flessen, bak van 24, geteld 1 pak + 6 los = 30 → teko
 | `/dashboard` | Overzicht van de dag: welke locaties geteld zijn, wat er vandaag te bestellen is per leverancier, welke leveringen nog nagekeken moeten worden. |
 | `/` | Bedrijf en locatie kiezen, per product de volle pakken en losse stuks invullen. Toont meteen wat besteld wordt. Werkt ook zonder verbinding. |
 | `/bestelling?id=…` | Het resultaat: bestelregels per leverancier, met de bestellijst in Excel (één telling of de hele dag), de bestelbon in PDF, CSV en "markeer als besteld". |
+| `/leveringen` | Alle bestellingen die nog nagekeken moeten worden, en de leveringen die al afgesloten zijn met hun afwijkingen. |
 | `/ontvangst?id=…` | Levering inboeken: wat er effectief geleverd is, met het verschil tegenover de bestelling. |
 | `/historiek` | Alle tellingen van het gekozen bedrijf; opnieuw downloaden of aanpassen kan altijd. |
 | `/stock` | Wat er nu in huis is per toog, met de tijdlijn per product en het boeken van bewegingen die niet uit een telling of levering volgen. |
 | `/verkoop` | Kassarapport inlezen, de kassanamen koppelen aan producten en togen, en het verschil tussen verbruik en verkoop bekijken. |
 | `/beheer` | Producten met basisstock per locatie, locaties, leveranciers, de toegangscodes en de bedrijven. |
+
+## Van bestelling naar levering
+
+Een telling wordt een bestelling, en die bestelling wordt nagekeken als de bakken binnenkomen.
+
+1. Tel op `/`. Wat onder de basisstock staat, komt op de bestelling.
+2. Geef de bestelling door met de bestelbon (PDF) of de bestellijst (Excel) en zet ze op
+   **Markeer als besteld**.
+3. Als de leverancier gelost heeft, ga je naar **Leveringen** en kies je *Levering inboeken*.
+   Per product vul je in wat er effectief binnenkwam, op dezelfde manier als bij het tellen:
+   volle pakken + losse stuks. Naast elke regel staat meteen of het klopt met wat besteld was.
+   Meestal klopt alles: met **Alles zoals besteld** vul je een hele leverancier in één klik in
+   en pas je enkel de uitzonderingen aan. Wat je al ingevuld had, blijft staan.
+4. **Levering afsluiten** zet de telling op *geleverd* en houdt bij wie wanneer nagekeken heeft.
+   Regels die leeg blijven staan, blijven "nog niet nagekeken" en tellen niet mee als geleverde
+   stock; de tool waarschuwt daarvoor bij het afsluiten.
+
+De afwijkingen komen terug op de bestelling zelf, op het dashboard onder *Leveringen die niet
+klopten*, en in de CSV van de telling. Wat effectief geleverd is, telt mee in de huidige stock —
+niet wat besteld was.
 
 ## Stock die niet via een telling beweegt
 
