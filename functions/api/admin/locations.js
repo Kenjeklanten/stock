@@ -18,8 +18,10 @@ export const onRequestPost = handler(async ({ request, env, data }) => {
   requireCompany(await guard(env, data), companyId, { manage: true });
   if (!name) throw new HttpError('Geef de locatie een naam.');
   try {
-    const res = await D.prepare('INSERT INTO locations (company_id, name, sort, active) VALUES (?1, ?2, ?3, ?4)')
-      .bind(companyId, name, int(input.sort, 0), input.active === false ? 0 : 1).run();
+    const res = await D.prepare(
+      'INSERT INTO locations (company_id, name, sort, active, whatsapp_active) VALUES (?1, ?2, ?3, ?4, ?5)'
+    ).bind(companyId, name, int(input.sort, 0), input.active === false ? 0 : 1,
+           input.whatsapp_active === false ? 0 : 1).run();
     return json({ id: res.meta.last_row_id }, 201);
   } catch (err) {
     if (String(err.message).includes('UNIQUE')) throw new HttpError('Dit bedrijf heeft al een locatie met die naam.', 409);
@@ -33,8 +35,10 @@ export const onRequestPut = handler(async ({ request, env, data }) => {
   const id = int(input.id, null);
   if (!id) throw new HttpError('Ontbrekend nummer.');
   await requireRowCompany(env, data, 'locations', id);
-  const res = await db(env).prepare('UPDATE locations SET name = ?2, sort = ?3, active = ?4 WHERE id = ?1')
-    .bind(id, text(input.name, 80), int(input.sort, 0), input.active === false ? 0 : 1).run();
+  const res = await db(env).prepare(
+    'UPDATE locations SET name = ?2, sort = ?3, active = ?4, whatsapp_active = ?5 WHERE id = ?1'
+  ).bind(id, text(input.name, 80), int(input.sort, 0), input.active === false ? 0 : 1,
+         input.whatsapp_active === false ? 0 : 1).run();
   if (!res.meta.changes) throw new HttpError('Locatie niet gevonden.', 404);
   return json({ ok: true });
 });

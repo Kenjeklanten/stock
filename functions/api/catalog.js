@@ -41,8 +41,9 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
 
   out.company = allowed.find((c) => c.id === companyId) || null;
   const [locations, suppliers, reasons] = await Promise.all([
-    D.prepare('SELECT id, name, sort, active FROM locations WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),
-    D.prepare('SELECT id, name, sort FROM suppliers WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),
+    D.prepare('SELECT id, name, sort, active, whatsapp_active FROM locations WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),
+    D.prepare(`SELECT id, name, sort, whatsapp, whatsapp_active, whatsapp_template
+                 FROM suppliers WHERE company_id = ?1 ORDER BY sort, name`).bind(companyId).all(),
     D.prepare('SELECT id, name, direction, sort, active FROM stock_reasons WHERE company_id = ?1 ORDER BY sort, name').bind(companyId).all(),
   ]);
   out.locations = locations.results || [];

@@ -4,7 +4,7 @@ import { api, toast, fmt, num, el, clear, qs, qsa, mountHeader, plural } from '.
 
 const state = {
   companyId: null, company: null, locations: [], suppliers: [], products: [], companies: [],
-  codes: [], admins: [], reasons: [], settings: {}, tab: 'producten', canManage: true, superAdmin: true,
+  codes: [], admins: [], reasons: [], settings: {}, whatsapp: null, tab: 'producten', canManage: true, superAdmin: true,
 };
 
 const input = (props) => el('input', { type: 'text', ...props });
@@ -230,7 +230,7 @@ function maakSleepbaar(tbody, tabel) {
 
 /* ---------------- eenvoudige tabellen ---------------- */
 
-function crudTable({ title, endpoint, table, items, columns, newLabel, withCompany = true, withActive = true }) {
+function crudTable({ title, endpoint, table, items, columns, newLabel, withCompany = true, withActive = true, vinkjes = [] }) {
   // Bij bedrijven verandert ook de keuzelijst bovenaan: het scherm wordt opnieuw opgebouwd.
   const reloadAfter = endpoint.endsWith('/companies');
   const tbody = el('tbody', {});
@@ -240,6 +240,7 @@ function crudTable({ title, endpoint, table, items, columns, newLabel, withCompa
       el('thead', {}, [el('tr', {}, [
         table ? el('th', { class: 'cell-move', text: '', title: 'Volgorde' }) : null,
         ...columns.map((c) => el('th', { text: c.label })),
+        ...vinkjes.map((v) => el('th', { text: v.label })),
         withActive ? el('th', { text: 'Actief' }) : null, el('th', { text: '' }),
       ])]),
       tbody,
@@ -251,13 +252,29 @@ function crudTable({ title, endpoint, table, items, columns, newLabel, withCompa
     const save = el('button', { class: 'btn btn--sm', disabled: true, text: 'Bewaar' });
     const tr = el('tr', { dataset: { id: String(item.id) } }, columns.map((c) => {
       const huidig = values[c.k] === null || values[c.k] === undefined ? '' : String(values[c.k]);
-      const node = c.keuzes
-        ? el('select', { 'aria-label': `${c.label} ${item.name}` }, c.keuzes.map((k) => el('option', { value: k, text: k })))
-        : el('input', { type: c.type || 'text', value: huidig, 'aria-label': `${c.label} ${item.name}` });
-      if (c.keuzes) { node.value = huidig || c.keuzes[0]; node.addEventListener('change', () => { values[c.k] = node.value; save.disabled = false; }); }
+      let node;
+      if (c.keuzes) {
+        node = el('select', { 'aria-label': `${c.label} ${item.name}` }, c.keuzes.map((k) => el('option', { value: k, text: k })));
+        node.value = huidig || c.keuzes[0];
+        node.addEventListener('change', () => { values[c.k] = node.value; save.disabled = false; });
+      } else if (c.groot) {
+        node = el('textarea', { rows: '3', 'aria-label': `${c.label} ${item.name}`, placeholder: c.placeholder || '' });
+        node.value = huidig;
+      } else {
+        node = el('input', { type: c.type || 'text', value: huidig, placeholder: c.placeholder || '', 'aria-label': `${c.label} ${item.name}` });
+      }
       node.addEventListener('input', () => { values[c.k] = node.value; save.disabled = false; });
       return el('td', { class: c.narrow ? 'cell-narrow' : '' }, [node]);
     }));
+    for (const v of vinkjes) {
+      const aan = el('input', {
+        type: 'checkbox', class: 'check', 'aria-label': `${v.label} ${item.name}`,
+        checked: values[v.k] === undefined || values[v.k] === null ? v.aan : values[v.k] !== 0,
+      });
+      values[v.k] = aan.checked;
+      aan.addEventListener('change', () => { values[v.k] = aan.checked; save.disabled = false; });
+      tr.append(el('td', {}, [aan]));
+    }
     if (table) tr.prepend(volgordeCel(tr, tbody, table));
     if (withActive) {
       const active = el('input', { type: 'checkbox', checked: values.active, class: 'check', 'aria-label': `Actief ${item.name}` });
@@ -287,18 +304,19 @@ function crudTable({ title, endpoint, table, items, columns, newLabel, withCompa
     tr.append(el('td', {}, [el('div', { class: 'row' }, [save, del])]));
     tbody.append(tr);
   }
-  if (!items.length) tbody.append(el('tr', {}, [el('td', { colspan: String(columns.length + (withActive ? 2 : 1) + (table ? 1 : 0)), class: 'muted', text: 'Nog niets toegevoegd.' })]));
+  if (!items.length) tbody.append(el('tr', {}, [el('td', { colspan: String(columns.length + vinkjes.length + (withActive ? 2 : 1) + (table ? 1 : 0)), class: 'muted', text: 'Nog niets toegevoegd.' })]));
   if (table) maakSleepbaar(tbody, table);
 
-  const fields = columns.map((c) => ({
+  const fields = columns.filter((c) => !c.groot).map((c) => ({
     c,
     node: c.keuzes
       ? el('select', {}, c.keuzes.map((k) => el('option', { value: k, text: k })))
-      : el('input', { type: c.type || 'text', placeholder: c.label }),
+      : el('input', { type: c.type || 'text', placeholder: c.placeholder || c.label }),
   }));
   const add = el('button', { class: 'btn', text: newLabel });
   add.addEventListener('click', async () => {
     const body = Object.fromEntries(fields.map(({ c, node }) => [c.k, node.value]));
+    for (const v of vinkjes) body[v.k] = v.aan;
     if (withCompany) body.company_id = state.companyId;
     if (!String(body.name || '').trim()) return toast('Een naam is verplicht.', true);
     try {
@@ -498,6 +516,116 @@ function renderAccess(panel) {
   renderAdmins(panel);
 }
 
+/* ---------------- whatsapp ---------------- */
+
+async function loadWhatsapp() {
+  try {
+    state.whatsapp = await api(`/api/admin/whatsapp?company_id=${state.companyId}`);
+  } catch { state.whatsapp = null; }
+}
+
+/** Hoe de bestelling buitengaat: automatisch via de Cloud API, of met de hand via een link. */
+function whatsappStand(w) {
+  if (w.configured && w.template_mode) {
+    return el('div', { class: 'notice notice--ok' }, [
+      el('b', { text: 'Automatisch versturen staat aan, met een goedgekeurde template.' }),
+      ' Berichten gaan rechtstreeks naar de leverancier, ook buiten het venster van 24 uur. '
+      + 'De bestelregels gaan als één lijn mee, want een template laat geen regeleindes toe in een parameter.',
+    ]);
+  }
+  if (w.configured) {
+    return el('div', { class: 'notice notice--warn' }, [
+      el('b', { text: 'Automatisch versturen staat aan, zonder template.' }),
+      ' WhatsApp laat een vrij bericht enkel door binnen 24 uur nadat de leverancier zelf iets '
+      + 'gestuurd heeft. Daarbuiten weigert Meta het bericht en krijg je de link om het met de hand '
+      + 'door te geven. Voor een bestelling die op elk moment moet kunnen vertrekken, laat je een '
+      + 'template goedkeuren en zet je die in WHATSAPP_TEMPLATE.',
+    ]);
+  }
+  return el('div', { class: 'notice' }, [
+    el('b', { text: 'Automatisch versturen staat nog niet aan.' }),
+    ' De tool stelt het bericht op en geeft je een link: één tik opent WhatsApp met de tekst erin, '
+    + 'jij duwt op verzenden. Dat werkt met de nummers waar nu al naartoe gestuurd wordt. '
+    + 'Wil je het volledig automatisch, dan is er een WhatsApp Business-nummer nodig en zet je '
+    + 'WHATSAPP_TOKEN en WHATSAPP_PHONE_ID bij de omgevingsvariabelen van het Pages-project.',
+  ]);
+}
+
+function renderWhatsapp(panel) {
+  const w = state.whatsapp;
+  if (!w) {
+    panel.append(el('div', { class: 'notice notice--error', text: 'De WhatsApp-instellingen konden niet geladen worden.' }));
+    return;
+  }
+
+  panel.append(el('p', { class: 'page-intro small muted', text: 'De bestelling van een telling als bericht naar de leverancier. Het nummer en de schakelaar staan bij de leverancier, de schakelaar per toog bij de locaties, en hieronder het bericht dat voor het hele bedrijf geldt.' }));
+  panel.append(whatsappStand(w));
+
+  // het bericht
+  const veld = el('textarea', { rows: '10', 'aria-label': 'Bericht', spellcheck: 'false' });
+  veld.value = w.template || w.standaard;
+  const bewaar = el('button', { class: 'btn', text: 'Bericht bewaren' });
+  const terug = el('button', { class: 'btn btn--ghost', text: 'Terug naar het standaardbericht' });
+
+  bewaar.addEventListener('click', async () => {
+    bewaar.disabled = true;
+    try {
+      await api('/api/admin/whatsapp', { method: 'PUT', body: { company_id: state.companyId, template: veld.value } });
+      toast('Bericht bewaard.');
+      await loadWhatsapp(); renderTab();
+    } catch (err) { toast(err.message, true); bewaar.disabled = false; }
+  });
+  terug.addEventListener('click', async () => {
+    if (!confirm('Het eigen bericht wissen en terugvallen op het standaardbericht?')) return;
+    try {
+      await api('/api/admin/whatsapp', { method: 'PUT', body: { company_id: state.companyId, template: '' } });
+      toast('Terug op het standaardbericht.');
+      await loadWhatsapp(); renderTab();
+    } catch (err) { toast(err.message, true); }
+  });
+
+  panel.append(el('section', { class: 'card' }, [
+    el('div', { class: 'card__head' }, [el('h2', { text: 'Het bericht' })]),
+    el('p', { class: 'small muted', text: 'Wat tussen accolades staat, wordt ingevuld. {regels} is verplicht — anders staat de bestelling niet in het bericht.' }),
+    el('ul', { class: 'small' }, Object.entries(w.plaatshouders || {}).map(([sleutel, uitleg]) => el('li', {}, [
+      el('code', { text: sleutel }), ` — ${uitleg}`,
+    ]))),
+    veld,
+    el('div', { class: 'row mt-2' }, [bewaar, terug]),
+  ]));
+
+  // het logboek
+  const log = w.log || [];
+  const rijen = log.map((m) => el('tr', {}, [
+    el('td', { class: 'small' }, [
+      el('b', { text: m.supplier_name }),
+      el('div', { class: 'muted', text: `${m.location_name || ''} · ${m.to_number ? `+${m.to_number}` : ''}` }),
+    ]),
+    el('td', { class: 'small', text: (m.sent_at || '').replace('T', ' ').slice(0, 16) }),
+    el('td', { class: 'small', text: m.sent_by || '—' }),
+    el('td', {}, [el('span', {
+      class: m.status === 'verzonden' ? 'tag tag--mint' : (m.status === 'mislukt' ? 'tag tag--danger' : 'tag tag--sun'),
+      text: m.status,
+    })]),
+    el('td', { class: 'small muted', text: m.detail || '' }),
+    el('td', {}, [el('details', {}, [el('summary', { class: 'small', text: 'bericht' }), el('pre', { class: 'small', text: m.body || '' })])]),
+  ]));
+
+  panel.append(el('section', { class: 'card' }, [
+    el('div', { class: 'card__head' }, [el('h2', { text: `Verstuurd (${log.length})` })]),
+    el('p', { class: 'small muted', text: 'Komt een leverancier met "ik heb niets gekregen", dan staat hier wat er wanneer en door wie doorgegeven is. Mislukte pogingen blijven ook staan.' }),
+    log.length
+      ? el('div', { class: 'table-wrap' }, [el('table', {}, [
+          el('thead', {}, [el('tr', {}, [
+            el('th', { text: 'Leverancier' }), el('th', { text: 'Wanneer' }), el('th', { text: 'Door' }),
+            el('th', { text: 'Status' }), el('th', { text: 'Kenmerk of fout' }), el('th', { text: '' }),
+          ])]),
+          el('tbody', {}, rijen),
+        ])])
+      : el('p', { class: 'muted', text: 'Er is nog niets verstuurd.' }),
+  ]));
+}
+
 /* ---------------- tabs ---------------- */
 
 function renderTab() {
@@ -511,14 +639,28 @@ function renderTab() {
     return;
   }
   if (state.tab === 'producten') renderProducts(panel);
-  else if (state.tab === 'locaties') panel.append(crudTable({
-    title: `Locaties van ${state.company ? state.company.name : '—'}`, endpoint: '/api/admin/locations', table: 'locations',
-    items: state.locations, newLabel: 'Locatie toevoegen', columns: [{ k: 'name', label: 'Naam' }],
-  }));
-  else if (state.tab === 'leveranciers') panel.append(crudTable({
-    title: `Leveranciers van ${state.company ? state.company.name : '—'}`, endpoint: '/api/admin/suppliers', table: 'suppliers',
-    items: state.suppliers, newLabel: 'Leverancier toevoegen', columns: [{ k: 'name', label: 'Naam' }], withActive: false,
-  }));
+  else if (state.tab === 'locaties') panel.append(
+    crudTable({
+      title: `Locaties van ${state.company ? state.company.name : '—'}`, endpoint: '/api/admin/locations', table: 'locations',
+      items: state.locations, newLabel: 'Locatie toevoegen', columns: [{ k: 'name', label: 'Naam' }],
+      vinkjes: [{ k: 'whatsapp_active', label: 'WhatsApp', aan: true }],
+    }),
+    el('p', { class: 'small muted', text: 'Staat WhatsApp uit voor een locatie, dan wordt er van die toog niets doorgegeven — ook niet aan leveranciers waar WhatsApp wél aanstaat.' }),
+  );
+  else if (state.tab === 'leveranciers') panel.append(
+    crudTable({
+      title: `Leveranciers van ${state.company ? state.company.name : '—'}`, endpoint: '/api/admin/suppliers', table: 'suppliers',
+      items: state.suppliers, newLabel: 'Leverancier toevoegen', withActive: false,
+      columns: [
+        { k: 'name', label: 'Naam' },
+        { k: 'whatsapp', label: 'WhatsApp-nummer', type: 'tel', narrow: true, placeholder: '0479 21 64 33' },
+        { k: 'whatsapp_template', label: 'Eigen bericht (leeg = dat van het bedrijf)', groot: true },
+      ],
+      vinkjes: [{ k: 'whatsapp_active', label: 'WhatsApp', aan: false }],
+    }),
+    el('p', { class: 'small muted', text: 'Zonder nummer valt er niets te versturen; de schakelaar gaat dan mee uit. Een eigen bericht overschrijft dat van het bedrijf en moet {regels} bevatten.' }),
+  );
+  else if (state.tab === 'whatsapp') renderWhatsapp(panel);
   else if (state.tab === 'redenen') renderReasons(panel);
   else if (state.tab === 'toegang') renderAccess(panel);
   else if (state.tab === 'bedrijven') {
@@ -540,6 +682,7 @@ async function init() {
   if (!state.superAdmin) qsa('[data-super-only]').forEach((n) => n.classList.add('hidden'));
   await refresh();
   if (state.superAdmin) await Promise.all([loadCodes(), loadAdmins()]);
+  if (state.companyId && state.canManage) await loadWhatsapp();
   if (!state.companyId) state.tab = state.superAdmin ? 'bedrijven' : 'toegang';
   else if (!state.canManage) state.tab = 'toegang';
   qsa('.tabs button').forEach((btn) => {

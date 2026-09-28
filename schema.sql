@@ -234,3 +234,30 @@ INSERT OR IGNORE INTO access_codes (code, label, role, company_id) VALUES
   ('1011', 'Volledige toegang', 'beheerder', NULL);
 INSERT OR IGNORE INTO access_codes (code, label, role, company_id)
   SELECT '8956', 'Tellen STVV', 'teller', id FROM companies WHERE name = 'STVV';
+
+-- WhatsApp: de bestelling van een telling als bericht naar de leverancier.
+--
+-- Per leverancier een nummer en een schakelaar, per locatie een schakelaar, en een eigen
+-- bericht dat het bericht van het bedrijf overschrijft. Wat er verstuurd is, blijft bewaard:
+-- bij een leverancier die met "ik heb niets gekregen" komt, wil je kunnen nakijken wat er
+-- wanneer en door wie doorgegeven is.
+ALTER TABLE suppliers ADD COLUMN whatsapp          TEXT;
+ALTER TABLE suppliers ADD COLUMN whatsapp_active   INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE suppliers ADD COLUMN whatsapp_template TEXT;
+ALTER TABLE locations ADD COLUMN whatsapp_active   INTEGER NOT NULL DEFAULT 1;
+
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  count_id      INTEGER REFERENCES counts(id) ON DELETE SET NULL,
+  supplier_id   INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
+  supplier_name TEXT    NOT NULL,
+  location_name TEXT,
+  to_number     TEXT    NOT NULL,
+  body          TEXT    NOT NULL,
+  status        TEXT    NOT NULL,     -- verzonden | mislukt | handmatig
+  detail        TEXT,                 -- kenmerk van WhatsApp, of de foutmelding
+  sent_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+  sent_by       TEXT
+);
+CREATE INDEX IF NOT EXISTS whatsapp_recent ON whatsapp_messages (company_id, sent_at DESC, id DESC);

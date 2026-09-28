@@ -85,7 +85,14 @@ main { max-width: var(--container-max); margin: 0 auto; padding: var(--space-5) 
 }
 .card > :last-child { margin-bottom: 0; }
 .card__head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
-.card__head h1, .card__head h2 { margin: 0; }
+.card__head h1, .card__head h2, .card__head h3 { margin: 0; }
+/* een kaart binnen een kaart: zelfde ordening, minder nadruk */
+.card--inset {
+  background: var(--surface-sunken); box-shadow: none;
+  padding: var(--space-3); margin-bottom: var(--space-3);
+}
+.card--inset:last-child { margin-bottom: 0; }
+.card--inset h3 { font-size: var(--text-h4); }
 
 /* ---------- formuliervelden (design-system Field) ---------- */
 label { display: block; font-family: var(--font-display); font-weight: var(--weight-bold); font-size: var(--text-body-sm); color: var(--text-strong); margin-bottom: var(--space-1); }

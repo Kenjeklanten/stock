@@ -39,7 +39,7 @@ Voorbeeld: basisstock 48 flessen, bak van 24, geteld 1 pak + 6 los = 30 → teko
 | `/historiek` | Alle tellingen van het gekozen bedrijf; opnieuw downloaden of aanpassen kan altijd. |
 | `/stock` | Wat er nu in huis is per toog, met de tijdlijn per product en het boeken van bewegingen die niet uit een telling of levering volgen. |
 | `/verkoop` | Kassarapport inlezen, de kassanamen koppelen aan producten en togen, en het verschil tussen verbruik en verkoop bekijken. |
-| `/beheer` | Producten met basisstock per locatie, locaties, leveranciers, de toegangscodes en de bedrijven. |
+| `/beheer` | Producten met basisstock per locatie, locaties, leveranciers (met hun WhatsApp-nummer), redenen, het WhatsApp-bericht en logboek, de toegangscodes en de bedrijven. |
 
 ## Van bestelling naar levering
 
@@ -60,6 +60,53 @@ Een telling wordt een bestelling, en die bestelling wordt nagekeken als de bakke
 De afwijkingen komen terug op de bestelling zelf, op het dashboard onder *Leveringen die niet
 klopten*, en in de CSV van de telling. Wat effectief geleverd is, telt mee in de huidige stock —
 niet wat besteld was.
+
+## De bestelling doorgeven via WhatsApp
+
+Verschillende leveranciers nemen hun bestelling via WhatsApp aan. De tool stelt dat bericht op uit
+de berekende bestelling, per leverancier apart, en zet het klaar op de bestelpagina onder
+**Doorgeven via WhatsApp**. Je kan het bericht daar nog aanpassen voor je het verstuurt.
+
+Wat er waar staat:
+
+* **Beheer → Leveranciers**: het WhatsApp-nummer, een schakelaar per leverancier, en een eigen
+  bericht dat dat van het bedrijf overschrijft. Zonder nummer valt er niets te versturen, dus gaat
+  de schakelaar dan mee uit. Nummers mag je intikken zoals je ze kent (`0479 21 64 33`); ze worden
+  bewaard in de vorm die WhatsApp verwacht.
+* **Beheer → Locaties**: een schakelaar per toog. Staat die uit, dan gaat er van die toog niets
+  buiten, ook niet naar leveranciers waar WhatsApp wél aanstaat.
+* **Beheer → WhatsApp**: het bericht dat voor het hele bedrijf geldt, en het logboek van wat er
+  verstuurd is — met wie het verstuurd heeft en wat WhatsApp antwoordde.
+
+In het bericht wordt tussen accolades ingevuld: `{bedrijf}`, `{leverancier}`, `{locatie}`,
+`{datum}`, `{regels}`, `{aantal}` en `{totaal}`. `{regels}` is verplicht; zonder dat staat de
+bestelling niet in het bericht en wordt het geweigerd.
+
+### Twee wegen naar buiten
+
+**Met de hand, werkt meteen.** De tool geeft een `wa.me`-link met het bericht er al in. Eén tik
+opent WhatsApp, jij duwt op verzenden. Dit werkt met de gewone nummers waar nu al naartoe gestuurd
+wordt, zonder token en zonder goedkeuring van Meta. Duw daarna op **Doorgegeven**, dan staat het in
+het logboek.
+
+**Automatisch, via de WhatsApp Cloud API.** Zet `WHATSAPP_TOKEN` en `WHATSAPP_PHONE_ID` en de knop
+*Versturen* wordt actief; *Alles versturen* doet in één keer alle leveranciers van die bestelling.
+Daar hangt wel een regel van Meta aan vast: een **vrij bericht mag enkel binnen 24 uur** nadat de
+leverancier zelf iets gestuurd heeft. Daarbuiten weigert WhatsApp het (foutcode 131047) en zegt de
+tool dat met zoveel woorden. Voor een bestelling die op elk moment moet kunnen vertrekken, laat je
+bij Meta een **template** goedkeuren en zet je de naam in `WHATSAPP_TEMPLATE`. De bestelregels gaan
+dan als één parameter mee, op één lijn met `·` ertussen, want een templateparameter mag geen
+regeleindes bevatten.
+
+Hiervoor is een WhatsApp Business-nummer nodig: een apart nummer in een Meta Business-account, niet
+het gsm-nummer dat vandaag gebruikt wordt. Meta rekent per bericht af.
+
+### Wat er gebeurt bij het versturen
+
+Een leverancier die wordt overgeslagen, verdwijnt niet stil: op het scherm staat waarom (geen
+nummer, schakelaar uit, locatie uit, of producten zonder leverancier). Lukt het versturen bij één
+leverancier niet, dan gaan de andere gewoon door. Zodra er iets vertrokken is, gaat de telling op
+*besteld* — een mislukte poging doet dat niet. Alles komt in het logboek, gelukt of niet.
 
 ## Stock die niet via een telling beweegt
 
@@ -249,6 +296,10 @@ Zet in deze repository de **GitHub secrets**:
 | `ACCESS_AUD` | Application Audience-tag van de Access-applicatie op `/aanmelden` |
 | `ADMIN_DOMAIN` | optioneel: het domein dat volledige toegang krijgt (standaard `kenjeklanten.be`) |
 | `APP_PIN` | optioneel: een noodcode met volledige toegang |
+| `WHATSAPP_TOKEN` | optioneel: permanent token van de WhatsApp Cloud API — zet automatisch versturen aan |
+| `WHATSAPP_PHONE_ID` | optioneel: het Phone Number ID van het WhatsApp Business-nummer |
+| `WHATSAPP_TEMPLATE` | optioneel: naam van een goedgekeurde template, nodig buiten het venster van 24 uur |
+| `WHATSAPP_TAAL` | optioneel: taalcode van die template (standaard `nl`) |
 
 Staat de database nog in een oudere vorm (versie 1, van vóór de bedrijven), dan bouwt de deploy ze
 opnieuw op — maar alleen als er nog geen producten of tellingen in staan. Zit er wel data in, dan

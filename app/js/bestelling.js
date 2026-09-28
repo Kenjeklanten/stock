@@ -137,6 +137,134 @@ function extras() {
   return enough.length || missing.length ? box : null;
 }
 
+/* ---------------- whatsapp ---------------- */
+
+let wa = null;
+
+/** Eén leverancier: het bericht, aanpasbaar, met versturen of openen in WhatsApp. */
+function waKaart(bericht) {
+  const veld = el('textarea', { rows: '8', 'aria-label': `Bericht voor ${bericht.supplier_name}`, spellcheck: 'false' });
+  veld.value = bericht.body;
+
+  const kop = el('div', { class: 'card__head' }, [
+    el('h3', { text: bericht.supplier_name }),
+    bericht.eigen_bericht ? el('span', { class: 'tag tag--sun', text: 'eigen bericht' }) : null,
+    el('span', { class: 'spacer' }),
+    el('span', { class: 'small muted', text: `${plural(bericht.lines, 'regel', 'regels')} · ${fmt(bericht.units)} eenheden` }),
+  ]);
+
+  if (bericht.skip) {
+    return el('section', { class: 'card card--inset' }, [
+      kop,
+      el('p', { class: 'small' }, [
+        el('b', { text: 'Wordt niet verstuurd. ' }), bericht.skip, ' ',
+        bericht.supplier_id ? el('a', { class: 'linkish', href: '/beheer', text: 'Aanpassen in Beheer' }) : null,
+      ]),
+    ]);
+  }
+
+  const verzend = el('button', { class: 'btn', text: wa.configured ? 'Versturen' : 'Versturen kan niet' });
+  verzend.disabled = !wa.configured;
+  if (!wa.configured) verzend.title = 'WhatsApp Business is niet ingesteld; gebruik de link ernaast.';
+
+  const openen = el('a', {
+    class: 'btn btn--secondary', target: '_blank', rel: 'noopener',
+    href: bericht.link, text: 'Openen in WhatsApp',
+  });
+  const uitkomst = el('p', { class: 'small mt-1' });
+
+  /** De link opent WhatsApp met de tekst erin; daarna leggen we vast dat het doorgegeven is. */
+  const bijwerkenLink = () => { openen.href = `https://wa.me/${bericht.to_number}?text=${encodeURIComponent(veld.value)}`; };
+  veld.addEventListener('input', bijwerkenLink);
+
+  const stuur = async (handmatig) => {
+    verzend.disabled = true;
+    try {
+      const res = await api('/api/whatsapp', {
+        method: 'POST',
+        body: { count_id: data.count.id, handmatig, suppliers: [{ supplier_id: bericht.supplier_id, body: veld.value }] },
+      });
+      const uit = (res.results || [])[0] || {};
+      clear(uitkomst);
+      if (uit.ok) {
+        uitkomst.append(el('span', { class: 'tag tag--mint', text: handmatig ? 'doorgegeven' : 'verzonden' }));
+        toast(handmatig ? 'Vastgelegd als doorgegeven.' : `Verstuurd naar ${bericht.supplier_name}.`);
+      } else {
+        uitkomst.append(el('span', { class: 'tag tag--danger', text: 'mislukt' }), ' ', uit.fout || 'Onbekende fout.');
+        toast(uit.fout || 'Versturen mislukt.', true);
+      }
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      verzend.disabled = !wa.configured;
+    }
+  };
+
+  const vastleggen = el('button', { class: 'btn btn--ghost btn--sm', text: 'Doorgegeven' });
+  vastleggen.title = 'Leg vast dat je dit bericht met de hand verstuurd hebt.';
+  vastleggen.addEventListener('click', () => stuur(true));
+  verzend.addEventListener('click', () => stuur(false));
+
+  return el('section', { class: 'card card--inset' }, [
+    kop,
+    el('p', { class: 'small muted', text: `Naar ${bericht.to_display}. Je kan het bericht hier nog aanpassen voor je het verstuurt.` }),
+    veld,
+    el('div', { class: 'row mt-2' }, [verzend, openen, vastleggen]),
+    uitkomst,
+  ]);
+}
+
+function waSectie() {
+  if (!wa || !wa.messages.length) return null;
+  const teVersturen = wa.messages.filter((m) => !m.skip);
+
+  const alles = el('button', { class: 'btn', text: `Alles versturen (${teVersturen.length})` });
+  alles.disabled = !wa.configured || !teVersturen.length;
+  alles.addEventListener('click', async () => {
+    if (!confirm(`De bestelling versturen naar ${plural(teVersturen.length, 'leverancier', 'leveranciers')}?`)) return;
+    alles.disabled = true;
+    try {
+      const res = await api('/api/whatsapp', {
+        method: 'POST',
+        body: { count_id: data.count.id, suppliers: teVersturen.map((m) => ({ supplier_id: m.supplier_id })) },
+      });
+      const mislukt = (res.results || []).filter((r) => !r.ok);
+      toast(mislukt.length
+        ? `${res.verzonden} verstuurd, ${mislukt.length} mislukt: ${mislukt.map((m) => m.fout).join(' ')}`
+        : `Verstuurd naar ${plural(res.verzonden, 'leverancier', 'leveranciers')}.`, mislukt.length > 0);
+      await load();
+    } catch (err) { toast(err.message, true); alles.disabled = false; }
+  });
+
+  const kaart = el('section', { class: 'card no-print' }, [
+    el('div', { class: 'card__head' }, [
+      el('h2', { text: 'Doorgeven via WhatsApp' }),
+      el('span', { class: 'spacer' }),
+      teVersturen.length ? alles : null,
+    ]),
+  ]);
+
+  if (!wa.location_active) {
+    kaart.append(el('div', { class: 'notice notice--warn', text: `WhatsApp staat uit voor ${data.count.location_name}. Zet het aan bij Beheer → Locaties om van deze toog te kunnen doorgeven.` }));
+  } else if (!teVersturen.length) {
+    kaart.append(el('div', { class: 'notice', text: 'Geen enkele leverancier op deze bestelling staat klaar voor WhatsApp. Zet een nummer en de schakelaar bij Beheer → Leveranciers.' }));
+  } else if (!wa.configured) {
+    kaart.append(el('div', { class: 'notice' }, [
+      el('b', { text: 'Automatisch versturen staat niet aan. ' }),
+      'Gebruik "Openen in WhatsApp": de tekst staat er al in, jij duwt op verzenden. Duw daarna op '
+      + '"Doorgegeven" zodat het in het logboek komt.',
+    ]));
+  } else if (wa.configured && !wa.template_mode) {
+    kaart.append(el('div', { class: 'notice notice--warn' }, [
+      'Zonder goedgekeurde template laat WhatsApp een bericht enkel door binnen 24 uur nadat de '
+      + 'leverancier zelf iets gestuurd heeft. Lukt het niet, gebruik dan de link.',
+    ]));
+  }
+
+  for (const bericht of wa.messages) kaart.append(waKaart(bericht));
+  return kaart;
+}
+
 async function setStatus(status) {
   try {
     await api(`/api/counts/${id}`, { method: 'PATCH', body: { status } });
@@ -147,12 +275,19 @@ async function setStatus(status) {
 
 async function load() {
   data = await api(`/api/counts/${encodeURIComponent(id)}`);
+  // de bestelling staat er ook zonder WhatsApp; een fout daar mag dit scherm niet breken
+  wa = data.orders.length
+    ? await api(`/api/whatsapp?count_id=${encodeURIComponent(id)}`).catch(() => null)
+    : null;
+
   const content = clear(qs('#content'));
   content.append(head());
   if (!data.orders.length) {
     content.append(el('div', { class: 'notice notice--ok', text: 'Alles staat op basisstock — er hoeft niets besteld te worden.' }));
   }
   for (const group of data.orders) content.append(supplierCard(group));
+  const berichten = waSectie();
+  if (berichten) content.append(berichten);
   const rest = extras();
   if (rest) content.append(rest);
 }
