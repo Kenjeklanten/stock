@@ -7,15 +7,36 @@
   "display": "standalone",
   "orientation": "portrait",
   "lang": "nl-BE",
-  "background_color": "#F7F9FB",
-  "theme_color": "#10495F",
+  "background_color": "#F8F9FB",
+  "theme_color": "#00172E",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Stock tellen", "url": "/" },
-    { "name": "Overzicht", "url": "/dashboard" }
+    {
+      "name": "Stock tellen",
+      "url": "/"
+    },
+    {
+      "name": "Overzicht",
+      "url": "/dashboard"
+    }
   ]
 }

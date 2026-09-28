@@ -1,138 +1,398 @@
-/* =====================================================================
-   Besteltool JE Concept — design tokens.
+/* JE Concept — designsysteem.
+   =========================================================================
+   Overgenomen uit het designsysteem "JE Concept" (claude.ai/design). De
+   waarden hieronder zijn de bron; verander ze hier en nergens anders.
 
-   Dit is de ENIGE plaats met kleuren, lettertypes, afstanden en vormen.
-   Het palet is genomen uit het JE Concept-logo: het diepe marineblauw van
-   de zeshoek en de letters, het lichte blauw van de tweede zeshoek, en
-   wit als grond. Eén warme kleur doet dienst als accent — verder blijft
-   alles blauw, zodat groen, oranje en rood enkel iets betekenen.
+   Twee dingen wijken af van het systeem zoals het aangeleverd is, en ze
+   moeten afwijken:
 
-   app.css gebruikt uitsluitend de rolnamen hieronder (--surface-*,
-   --text-*, --action-*, --status-*), dus je hoeft enkel dit bestand aan
-   te passen om de hele tool mee te laten kleuren.
-   ===================================================================== */
+   1. De fonts komen bij Google Fonts vandaan, maar staan hier lokaal in
+      app/fonts/. De CSP van deze tool laat geen stylesheets of fonts van
+      een ander domein toe, en dat blijft zo. De woff2-bestanden zijn de
+      originele Google-bestanden; per subset apart, zodat de browser enkel
+      ophaalt wat een scherm echt gebruikt.
+   2. Iconen via de Lucide-CDN kunnen om dezelfde reden niet. De tool
+      gebruikt vandaag bijna geen iconen; komen ze er, dan worden de echte
+      Lucide-glyphs lokaal meegeleverd, niet nagetekend.
+
+   De onderste blok is een brug: app.css spreekt in rolnamen
+   (--surface-*, --action-*, --status-*) en die worden hier op de
+   systeemtokens gelegd. Zo blijft er één bron van waarheid.
+   ========================================================================= */
+
+/* ---------- fonts (lokaal, de Google-bestanden) ---------- */
+@font-face {
+  font-family: 'Oswald';
+  font-style: normal;
+  font-weight: 200 700;
+  font-display: swap;
+  src: url('/fonts/oswald-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Oswald';
+  font-style: normal;
+  font-weight: 200 700;
+  font-display: swap;
+  src: url('/fonts/oswald-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fonts/source-sans-3-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fonts/source-sans-3-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Parisienne';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/parisienne-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Parisienne';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/parisienne-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Prata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/prata-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ---------- fonts ---------- */
+/* JE Concept webfonts.
+   SUBSTITUTION FLAG — no brand font files were supplied. These are the nearest
+   Google Fonts matches for the logo's voice and the chosen "condensed display +
+   humanist body" direction:
+     Oswald        -> condensed display (headlines, eyebrows, poster energy)
+     Source Sans 3 -> humanist body/UI (paragraphs, forms, tables)
+     Parisienne    -> signature script, echoes "Concept" in the logo (accents only)
+     Prata         -> Didone serif, echoes the "JE" monogram (numerals, initials)
+   Swap in the licensed originals when available. */
+
+:root{
+  --font-display:"Oswald","Helvetica Neue Condensed","Arial Narrow",sans-serif;
+  --font-ui:"Source Sans 3","Helvetica Neue",Helvetica,sans-serif;
+  --font-body:var(--font-ui);
+  --font-script:"Parisienne",cursive;
+  --font-serif:"Prata",Didot,"Times New Roman",serif;
+}
+
+/* ---------- colors ---------- */
+:root{
+  /* --- Navy: the brand ink, sampled from the logo (#003060) --- */
+  --navy-950:#00172E;
+  --navy-900:#002246;
+  --navy-800:#003060; /* logo ink */
+  --navy-700:#1B3A6B; /* primary interactive navy */
+  --navy-600:#2A4E86;
+  --navy-500:#3E67A3;
+  --navy-400:#6C8CBE;
+  --navy-300:#9DB3D5;
+  --navy-200:#C6D3E8;
+  --navy-100:#DCE4F0; /* pale hexagon blue from the logo */
+  --navy-50:#EEF2F8;
+
+  /* --- Paper & neutrals --- */
+  --white:#FFFFFF;
+  --paper:#F8F9FB; /* the logo's own ground */
+  --slate-700:#2E3744;
+  --slate-500:#5C6779;
+  --slate-400:#7C8797;
+  --slate-300:#98A1B0;
+  --slate-200:#C9CFD8;
+  --slate-100:#E6E9EE;
+
+  /* --- Semantic hues (kept close to the navy family) --- */
+  --green-600:#1F7A54;
+  --amber-600:#B4761B;
+  --red-600:#B3352F;
+
+  /* --- Semantic aliases: components use only these --- */
+  --canvas:var(--paper);
+  --surface-1:var(--white);
+  --surface-2:var(--navy-50);
+  --surface-3:var(--navy-100);
+  --surface-ink:var(--navy-900);
+
+  --text-1:var(--navy-950);
+  --text-2:var(--slate-500);
+  --text-3:var(--slate-300);
+  --text-accent:var(--navy-700);
+  --text-on-accent:var(--white);
+  --text-on-ink:var(--white);
+  --text-link:var(--navy-700);
+  --text-link-hover:var(--navy-500);
+
+  --border-hairline:rgba(0,48,96,.14);
+  --border-subtle:rgba(0,48,96,.22);
+  --border-strong:rgba(0,48,96,.42);
+  --border-accent:var(--navy-700);
+
+  --accent:var(--navy-700);
+  --accent-hover:var(--navy-600);
+  --accent-press:var(--navy-900);
+  --accent-quiet:rgba(27,58,107,.07);
+  --accent-quiet-hover:rgba(27,58,107,.12);
+
+  --success:var(--green-600);
+  --warning:var(--amber-600);
+  --danger:var(--red-600);
+  --info:var(--navy-600);
+
+  /* --- Brand washes. No hue-shifting gradients: navy fading to nothing. --- */
+  --grad-hairline:linear-gradient(90deg,rgba(0,48,96,0) 0%,rgba(0,48,96,.35) 50%,rgba(0,48,96,0) 100%); /* @kind color */
+  --grad-veil:linear-gradient(180deg,rgba(0,23,46,.86) 0%,rgba(0,23,46,.42) 55%,rgba(0,23,46,.08) 100%); /* @kind color */
+  --grad-protect:linear-gradient(to top,var(--navy-950) 0%,rgba(0,23,46,.72) 45%,rgba(0,23,46,0) 100%); /* @kind color */
+  --grad-tint:linear-gradient(180deg,var(--navy-50) 0%,var(--paper) 100%); /* @kind color */
+
+  /* --- Hexagon motif (from the logo's double hexagon) --- */
+  --clip-hex:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%); /* @kind other */
+}
+
+/* Night scope: dark navy sections, hero blocks, invitations, social posts. */
+.je-night{
+  --canvas:var(--navy-950);
+  --surface-1:var(--navy-900);
+  --surface-2:#032B54;
+  --surface-3:var(--navy-800);
+  --text-1:var(--white);
+  --text-2:var(--navy-200);
+  --text-3:var(--navy-400);
+  --text-accent:var(--navy-100);
+  --text-link:var(--navy-100);
+  --text-link-hover:var(--white);
+  --text-on-accent:var(--navy-950);
+  --border-hairline:rgba(220,228,240,.16);
+  --border-subtle:rgba(220,228,240,.26);
+  --border-strong:rgba(220,228,240,.46);
+  --border-accent:var(--navy-100);
+  --accent:var(--navy-100);
+  --accent-hover:var(--white);
+  --accent-press:var(--navy-200);
+  --accent-quiet:rgba(220,228,240,.10);
+  --accent-quiet-hover:rgba(220,228,240,.16);
+  --success:#4FBE8B;
+  --warning:#E0A33A;
+  --danger:#E2695F;
+  color:var(--text-1);
+}
+
+/* ---------- typography ---------- */
+:root{
+  /* Display — Oswald, condensed, uppercase, slight positive tracking */
+  --fs-display-1:96px; --lh-display-1:0.94; /* @kind font */ --ls-display-1:0.005em; /* @kind font */
+  --fs-display-2:72px; --lh-display-2:0.96; /* @kind font */ --ls-display-2:0.01em; /* @kind font */
+  --fs-display-3:52px; --lh-display-3:1.00; /* @kind font */ --ls-display-3:0.015em; /* @kind font */
+
+  /* Headings — Oswald */
+  --fs-h1:44px; --lh-h1:1.06; /* @kind font */ --ls-h1:0.01em; /* @kind font */
+  --fs-h2:32px; --lh-h2:1.12; /* @kind font */ --ls-h2:0.015em; /* @kind font */
+  --fs-h3:22px; --lh-h3:1.22; /* @kind font */ --ls-h3:0.02em; /* @kind font */
+
+  /* Body / UI — Source Sans 3 */
+  --fs-lead:20px;  --lh-lead:1.55; /* @kind font */
+  --fs-body:16px;  --lh-body:1.65; /* @kind font */
+  --fs-body-sm:14px; --lh-body-sm:1.6; /* @kind font */
+  --fs-caption:12px; --lh-caption:1.45; /* @kind font */
+
+  /* Eyebrow / label — Oswald caps, wide */
+  --fs-eyebrow:12px; --ls-eyebrow:0.24em; /* @kind font */ --lh-eyebrow:1.2; /* @kind font */
+  --fs-label:12px;   --ls-label:0.10em; /* @kind font */
+
+  --fw-light:300; /* @kind font */
+  --fw-regular:400; /* @kind font */
+  --fw-medium:500; /* @kind font */
+  --fw-semibold:600; /* @kind font */
+  --fw-bold:700; /* @kind font */
+
+  --type-display:var(--fw-medium) var(--fs-display-1)/var(--lh-display-1) var(--font-display);
+  --type-h1:var(--fw-medium) var(--fs-h1)/var(--lh-h1) var(--font-display);
+  --type-h2:var(--fw-medium) var(--fs-h2)/var(--lh-h2) var(--font-display);
+  --type-h3:var(--fw-medium) var(--fs-h3)/var(--lh-h3) var(--font-display);
+  --type-lead:var(--fw-light) var(--fs-lead)/var(--lh-lead) var(--font-ui);
+  --type-body:var(--fw-regular) var(--fs-body)/var(--lh-body) var(--font-ui);
+  --type-body-sm:var(--fw-regular) var(--fs-body-sm)/var(--lh-body-sm) var(--font-ui);
+  --type-caption:var(--fw-semibold) var(--fs-caption)/var(--lh-caption) var(--font-ui);
+  --type-eyebrow:var(--fw-medium) var(--fs-eyebrow)/var(--lh-eyebrow) var(--font-display);
+  --type-script:var(--fw-regular) 32px/1.2 var(--font-script);
+}
+
+/* ---------- spacing ---------- */
+:root{
+  --space-0:0px;
+  --space-1:2px;
+  --space-2:4px;
+  --space-3:8px;
+  --space-4:12px;
+  --space-5:16px;
+  --space-6:24px;
+  --space-7:32px;
+  --space-8:48px;
+  --space-9:64px;
+  --space-10:96px;
+  --space-11:128px;
+  --space-12:180px;
+
+  /* Semantic rhythm */
+  --gap-inline:var(--space-3);
+  --gap-stack:var(--space-5);
+  --gap-group:var(--space-7);
+  --pad-control-y:var(--space-4);
+  --pad-control-x:var(--space-6);
+  --pad-card:var(--space-7);
+  --section-y:var(--space-11);
+  --section-y-compact:var(--space-10);
+  --page-gutter:var(--space-8);
+  --measure:64ch; /* @kind spacing */
+  --container:1240px; /* @kind spacing */
+  --container-narrow:820px; /* @kind spacing */
+}
+
+/* ---------- radius ---------- */
+:root{
+  /* Restrained: the brand reads sharp, not friendly-rounded */
+  --radius-0:0px;
+  --radius-sm:2px;
+  --radius-md:4px;
+  --radius-lg:8px;
+  --radius-xl:14px;
+  --radius-pill:999px;
+  --radius-control:var(--radius-sm);
+  --radius-card:var(--radius-md);
+  --radius-media:var(--radius-md);
+  --radius-modal:var(--radius-lg);
+
+  --border-w-hair:1px; /* @kind radius */
+  --border-w-thick:2px; /* @kind radius */
+}
+
+/* ---------- elevation ---------- */
+:root{
+  /* Restrained by direction: hairlines first, shadow only where things float. */
+  --shadow-none:none; /* @kind shadow */
+  --shadow-hairline:0 0 0 1px var(--border-hairline); /* @kind shadow */
+  --shadow-1:0 1px 2px rgba(0,23,46,.05),0 6px 16px -12px rgba(0,23,46,.18); /* @kind shadow */
+  --shadow-2:0 2px 4px rgba(0,23,46,.06),0 18px 40px -24px rgba(0,23,46,.28); /* @kind shadow */
+  --shadow-3:0 4px 8px rgba(0,23,46,.07),0 40px 80px -36px rgba(0,23,46,.34); /* @kind shadow */
+  --ring-focus:0 0 0 2px var(--canvas),0 0 0 4px var(--navy-500); /* @kind shadow */
+  --inset-hairline:inset 0 0 0 1px var(--border-hairline); /* @kind shadow */
+}
+
+/* ---------- motion ---------- */
+:root{
+  --dur-instant:90ms; /* @kind other */
+  --dur-fast:160ms; /* @kind other */
+  --dur-base:240ms; /* @kind other */
+  --dur-slow:420ms; /* @kind other */
+  --dur-curtain:720ms; /* @kind other */
+  --ease-brand:cubic-bezier(.2,.7,.2,1); /* @kind other */
+  --ease-out:cubic-bezier(.16,1,.3,1); /* @kind other */
+  --ease-in-out:cubic-bezier(.5,0,.5,1); /* @kind other */
+  --transition-control:color var(--dur-fast) var(--ease-brand),background-color var(--dur-fast) var(--ease-brand),border-color var(--dur-fast) var(--ease-brand),box-shadow var(--dur-fast) var(--ease-brand),opacity var(--dur-fast) var(--ease-brand),transform var(--dur-fast) var(--ease-brand); /* @kind other */
+}
+@media (prefers-reduced-motion:reduce){
+  :root{
+    --dur-instant:0ms; /* @kind other */
+    --dur-fast:0ms; /* @kind other */
+    --dur-base:0ms; /* @kind other */
+    --dur-slow:0ms; /* @kind other */
+    --dur-curtain:0ms; /* @kind other */
+  }
+}
+
+/* ---------- brug naar de rolnamen die app.css gebruikt ---------- */
+/* Elke naam hieronder is een verwijzing, geen nieuwe waarde. Staat er iets
+   scheef in de tool, dan hoort de aanpassing bovenaan te gebeuren. */
 :root {
-  /* ---------- palet, uit het logo ---------- */
-  --je-navy-900: #071B2F;   /* bijna zwart blauw: de kopbalk en het aanmeldscherm */
-  --je-navy-800: #0A2947;
-  --je-navy-700: #0D3A63;   /* de merkkleur: de zeshoek en de letters JE */
-  --je-navy-600: #14508A;
-  --je-navy-500: #2A6DAA;
-  --je-navy-300: #9DC0DE;
-  --je-navy-200: #C9DDF0;   /* de lichte zeshoek achter het logo */
-  --je-navy-100: #E7F0F9;
+  /* oppervlakken */
+  --surface-page:   var(--canvas);
+  --surface-card:   var(--surface-1);
+  --surface-sunken: var(--surface-2);
+  --surface-dark:   var(--navy-950);
 
-  --je-amber-800: #8A5200;
-  --je-amber-600: #C87F0E;
-  --je-amber-500: #E8A33A;  /* het enige warme accent */
-  --je-amber-100: #FDF2DE;
+  /* tekst */
+  --text-strong:   var(--text-1);
+  --text-muted:    var(--text-2);
+  --text-on-dark:  var(--navy-200);
+  --text-on-brand: var(--text-on-accent);
 
-  --je-red-700: #A8231B;
-  --je-red-300: #EFB2AD;
-  --je-red-100: #FBEAE8;
+  /* acties */
+  --action-primary:         var(--accent);
+  --action-primary-hover:   var(--accent-hover);
+  --action-secondary:       var(--navy-600);
+  --action-secondary-hover: var(--navy-700);
+  /* Let op: het systeem kent geen warm accent. Amber is uitsluitend de
+     toestand "opgelet" (--warning), nooit decoratie. Waar de tool vroeger
+     een amber accentstreep had, staat nu de merknavy. */
+  --action-accent:          var(--accent);
 
-  --je-green-700: #12703F;
-  --je-green-300: #93D2AE;
-  --je-green-100: #E6F4EB;
+  /* toestanden — enkel voor toestand, nooit om te versieren */
+  --status-success:      var(--success);
+  --status-success-soft: rgba(31,122,84,.07);
+  --status-warning:      var(--warning);
+  --status-warning-soft: rgba(180,118,27,.07);
+  --status-danger:       var(--danger);
+  --status-danger-soft:  rgba(179,53,47,.07);
+  --status-info:         var(--info);
+  --status-info-soft:    var(--accent-quiet);
 
-  --je-slate-900: #0F1B26;
-  --je-slate-700: #33475B;
-  --je-slate-500: #64798E;
-  --je-slate-300: #CBD6E0;
-  --je-slate-100: #E7EDF3;
-  --je-slate-50:  #F5F8FB;
-  --je-white:     #FFFFFF;
+  /* randen. --border-hairline is in het systeem een kleur; de dikte heet
+     --border-w-hair. app.css is daarop aangepast. */
+  --border-soft:    var(--border-hairline);
+  --border-regular: var(--border-w-hair);
+  --border-chunky:  var(--border-w-thick);
+  --focus-ring:     var(--navy-500);
 
-  /* ---------- rollen ---------- */
-  --surface-page:   var(--je-slate-50);
-  --surface-card:   var(--je-white);
-  --surface-sunken: var(--je-slate-100);
-  --surface-dark:   var(--je-navy-900);
+  /* typografie */
+  --font-heading: var(--font-display);
+  --text-h2:      var(--fs-h2);
+  --text-h3:      var(--fs-h3);
+  --text-h4:      var(--fs-h3);
+  --text-body-lg: var(--fs-lead);
+  --text-body-md: var(--fs-body);
+  --text-body-sm: var(--fs-body-sm);
+  --text-caption: var(--fs-caption);
+  --text-eyebrow: var(--fs-eyebrow);
+  --tracking-eyebrow: var(--ls-eyebrow);
+  --weight-regular:  var(--fw-regular);
+  --weight-semibold: var(--fw-semibold);
+  --weight-bold:     var(--fw-semibold);
+  --weight-black:    var(--fw-bold);
+  --leading-tight: var(--lh-h1);
+  --leading-snug:  var(--lh-h3);
+  --leading-normal: var(--lh-body);
+  --leading-loose:  var(--lh-lead);
 
-  --text-strong:  var(--je-navy-900);
-  --text-body:    var(--je-slate-700);
-  --text-muted:   var(--je-slate-500);
-  --text-on-dark: #DCE8F4;
-  --text-on-brand: var(--je-white);
-  --text-link:       var(--je-navy-700);
-  --text-link-hover: var(--je-navy-900);
+  /* maten */
+  --radius-input:  var(--radius-control);
+  --radius-button: var(--radius-control);
+  --radius-tag:    var(--radius-pill);
+  --container-max: var(--container);
+  --gutter:        var(--space-6);
 
-  --action-primary:         var(--je-navy-700);
-  --action-primary-hover:   var(--je-navy-800);
-  --action-secondary:       var(--je-navy-600);
-  --action-secondary-hover: var(--je-navy-700);
-  --action-accent:          var(--je-amber-500);
-
-  --border-soft:   var(--je-slate-300);
-  --border-strong: var(--je-navy-700);
-
-  --status-success: var(--je-green-700);
-  --status-success-soft: var(--je-green-100);
-  --status-warning: var(--je-amber-800);
-  --status-warning-soft: var(--je-amber-100);
-  --status-danger:  var(--je-red-700);
-  --status-danger-soft: var(--je-red-100);
-  --status-info:    var(--je-navy-700);
-  --status-info-soft: var(--je-navy-100);
-
-  --focus-ring: var(--je-navy-600);
-  --ring-focus: 0 0 0 3px rgba(20, 80, 138, .32);
-
-  /* ---------- typografie ----------
-     Het logo zet "JE" in een klassieke schreefletter; die toon keert terug in de titels.
-     Cijfers en knoppen blijven schreefloos: aan de toog moet een 3 een 3 zijn. */
-  --font-heading: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
-  --font-display: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-body:    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-
-  --text-h1: clamp(26px, 3vw, 34px);
-  --text-h2: 20px;
-  --text-h3: 24px;
-  --text-h4: 18px;
-  --text-body-lg: 18px;
-  --text-body-md: 16px;
-  --text-body-sm: 14px;
-  --text-caption: 13px;
-  --text-eyebrow: 12px;
-
-  --weight-regular: 400;
-  --weight-semibold: 600;
-  --weight-bold: 700;
-  --weight-black: 800;
-
-  --leading-tight: 1.15;
-  --leading-snug: 1.25;
-  --leading-normal: 1.5;
-  --leading-loose: 1.7;
-  --tracking-eyebrow: .08em;
-
-  /* ---------- ruimte en vorm ---------- */
-  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
-  --space-6: 32px; --space-7: 48px; --space-8: 64px; --space-9: 96px;
-  --container-max: 1180px;
-  --gutter: 24px;
-
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-pill: 999px;
-  --radius-card: var(--radius-lg);
-  --radius-input: var(--radius-sm);
-  --radius-button: var(--radius-sm);
-  --radius-tag: var(--radius-pill);
-
-  --border-hairline: 1px;
-  --border-regular: 1px;
-  --border-chunky: 3px;
-
-  --shadow-sm:   0 1px 2px rgba(7, 27, 47, .06);
-  --shadow-card: 0 1px 2px rgba(7, 27, 47, .07), 0 10px 26px -18px rgba(7, 27, 47, .30);
-  --shadow-lift: 0 14px 30px -14px rgba(7, 27, 47, .36);
-
-  /* ---------- beweging ---------- */
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
-  --ease-out: cubic-bezier(.22, .61, .36, 1);
-  --ease-bounce: cubic-bezier(.34, 1.2, .64, 1);
-  --hover-lift: translateY(-1px);
+  /* elevatie en beweging */
+  --shadow-sm:   var(--shadow-1);
+  --shadow-card: var(--shadow-hairline);
+  --shadow-lift: var(--shadow-2);
+  --hover-lift:  none;   /* het systeem tilt kaarten niet op; rand en schaduw doen het werk */
 }

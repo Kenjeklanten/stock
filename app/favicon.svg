@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Besteltool">
-  <rect width="64" height="64" rx="14" fill="#10495f"/>
-  <path d="M18 20h28M18 32h28M18 44h18" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
-  <circle cx="46" cy="44" r="7" fill="#f0b357"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Besteltool JE Concept">
+  <rect width="64" height="64" fill="#00172E"/>
+  <polygon points="32,8 54,20 54,44 32,56 10,44 10,20" fill="#DCE4F0"/>
+  <polygon points="32,18 45,25 45,39 32,46 19,39 19,25" fill="#003060"/>
 </svg>

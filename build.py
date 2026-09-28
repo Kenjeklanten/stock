@@ -64,6 +64,13 @@ def main(target="dist"):
         shell = ["/", "/dashboard", "/stock", "/leveringen", "/historiek", "/beheer", "/bestelling", "/ontvangst",
                  "/verkoop", "/login",
                  "/favicon.svg", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"]
+        # De twee fonts die elk scherm gebruikt, zodat offline tellen zijn typografie houdt.
+        # De andere subsets (latin-ext) en de twee merkfonts komen pas als een scherm ze nodig
+        # heeft; daar zorgt unicode-range voor.
+        shell += [f"/fonts/{n}" for n in ("oswald-latin.woff2", "source-sans-3-latin.woff2")
+                  if (APP / "fonts" / n).exists()]
+        if (APP / "logo.png").exists():
+            shell.append("/logo.png")
         shell += sorted(f"/{a.relative_to(out).as_posix()}?v={version}" for a in assets)
         code = worker.read_text(encoding="utf-8")
         code = code.replace("__VERSION__", version).replace("__ASSETS__", json.dumps(shell, indent=2))

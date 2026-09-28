@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Maakt de app-iconen voor het beginscherm van een telefoon.
 
-Zelfde tekening als favicon.svg — een tellijst met een accentbol — maar als PNG, want
-Android wil PNG's van 192 en 512 pixels voor "toevoegen aan beginscherm". Er komt ook een
-maskable versie: die vult het hele vierkant, zodat het systeem er zijn eigen vorm uit mag
-knippen zonder de tekening aan te snijden.
+Zelfde tekening als favicon.svg: het zeshoekmotief van het merkteken, in de navy van het
+designsysteem. Als PNG, want Android wil 192 en 512 pixels voor "toevoegen aan beginscherm".
+Er komt ook een maskable versie: die vult het hele vierkant, zodat het systeem er zijn eigen
+vorm uit mag knippen zonder de tekening aan te snijden.
+
+De zeshoek volgt --clip-hex uit het designsysteem: punt boven en onder.
 
     python3 scripts/icons.py          # schrijft app/icon-*.png
 """
@@ -12,9 +14,10 @@ import struct
 import zlib
 from pathlib import Path
 
-NAVY = (0x10, 0x49, 0x5F)
-WHITE = (0xFF, 0xFF, 0xFF)
-AMBER = (0xF0, 0xB3, 0x57)
+# de kleuren van het designsysteem
+NAVY_950 = (0x00, 0x17, 0x2E)   # de grond
+NAVY_100 = (0xDC, 0xE4, 0xF0)   # de lichte zeshoek uit het logo
+NAVY_800 = (0x00, 0x30, 0x60)   # de merkinkt
 SS = 4  # supersampling: vier keer zo fijn tekenen en dan uitmiddelen
 
 
@@ -33,25 +36,31 @@ def circle(cx, cy, r):
     return lambda px, py: (px - cx) ** 2 + (py - cy) ** 2 <= r * r
 
 
+def hexagon(cx, cy, w, h):
+    """De zeshoek van --clip-hex: punten op 50%/0% en 50%/100%, zijden op 25% en 75%."""
+    punten = [(cx, cy - h / 2), (cx + w / 2, cy - h / 4), (cx + w / 2, cy + h / 4),
+              (cx, cy + h / 2), (cx - w / 2, cy + h / 4), (cx - w / 2, cy - h / 4)]
+
+    def inside(px, py):
+        binnen = False
+        for i in range(len(punten)):
+            x1, y1 = punten[i]
+            x2, y2 = punten[(i + 1) % len(punten)]
+            if (y1 > py) != (y2 > py) and px < x1 + (py - y1) / (y2 - y1) * (x2 - x1):
+                binnen = not binnen
+        return binnen
+    return inside
+
+
 def draw(size, maskable=False):
     """Tekent het icoon op een grid van size×size en geeft de RGB-rijen terug."""
-    unit = size / 64
-    inset = 0 if maskable else 0
-    # bij een maskable icoon staat de tekening kleiner, binnen de veilige zone (80%)
-    scale = 0.62 if maskable else 1.0
-    offset = (64 - 64 * scale) / 2
+    mid = size / 2
+    # bij een maskable icoon staat de tekening kleiner, binnen de veilige zone
+    groot = size * (0.58 if maskable else 0.76)
+    klein = groot * 0.66
 
-    def t(v):
-        return (offset + v * scale) * unit
-
-    achtergrond = (rounded_rect(0, 0, size, size, 0) if maskable
-                   else rounded_rect(0, 0, size, size, 14 * unit))
-    def balk(x0, x1, midden):
-        dik = 5 * scale * unit
-        return rounded_rect(t(x0), t(midden - 2.5), (x1 - x0) * scale * unit, dik, dik / 2)
-
-    balken = [balk(18, 46, 20), balk(18, 46, 32), balk(18, 36, 44)]
-    bol = circle(t(46), t(44), 7 * scale * unit)
+    buiten = hexagon(mid, mid, groot * 0.92, groot)
+    binnen = hexagon(mid, mid, klein * 0.92, klein)
 
     rows = []
     for y in range(size):
@@ -62,16 +71,12 @@ def draw(size, maskable=False):
                 for sx in range(SS):
                     px = x + (sx + 0.5) / SS
                     py = y + (sy + 0.5) / SS
-                    if bol(px, py):
-                        kleur = AMBER
-                    elif any(bar(px, py) for bar in balken):
-                        kleur = WHITE
-                    elif achtergrond(px, py):
-                        kleur = NAVY
+                    if binnen(px, py):
+                        kleur = NAVY_800
+                    elif buiten(px, py):
+                        kleur = NAVY_100
                     else:
-                        kleur = NAVY if maskable else None
-                    if kleur is None:
-                        kleur = NAVY  # buiten de afronding: dezelfde kleur, geen transparantie
+                        kleur = NAVY_950
                     r += kleur[0]; g += kleur[1]; b += kleur[2]
             n = SS * SS
             row += bytes((r // n, g // n, b // n))

@@ -225,26 +225,53 @@ De hele dag exporteren telt de tellingen van alle locaties van dat bedrijf samen
 
 ## Vormgeving
 
-`app/css/tokens.css` is het hele design-system: palet, rollen (`--surface-*`, `--text-*`,
-`--action-*`, `--status-*`), typografie, ruimte, vorm, schaduwen en beweging. `app/css/app.css`
-bevat enkel componenten en gebruikt uitsluitend die tokens — er staat geen enkele vaste kleur in.
+De tool draait op het **designsysteem JE Concept** (claude.ai/design). Drie bestanden:
 
-De waarden die er nu in staan zijn **sober ingevuld in afwachting van de JE Concept-huisstijl**:
-vervang het palet en de fonts in `tokens.css` (en zet eventuele eigen fontbestanden in
-`app/assets/fonts/` met een `@font-face` bovenaan datzelfde bestand) en de hele tool volgt mee.
+| Bestand | Wat |
+|---|---|
+| `app/css/tokens.css` | de tokens van het systeem — kleuren, typografie, ruimte, vorm, elevatie, beweging — plus onderaan een brug naar de rolnamen die `app.css` gebruikt |
+| `app/css/components.css` | `tokens/components.css` van het systeem, **onveranderd**. Niet met de hand aanpassen |
+| `app/css/app.css` | de onderdelen van deze tool, uitsluitend in die tokens uitgedrukt |
+
+Er staat geen enkele vaste kleur, maat of vorm in `app.css`. Verandert het systeem, dan vervang je
+`tokens.css` en `components.css` en volgt de hele tool mee.
+
+### Waar de tool afwijkt, en waarom
+
+Het systeem is gemaakt voor vier oppervlakken: website, voorstel, klantenportaal en social. Deze
+tool is een werkscherm waarop aan de toog geteld wordt. Het **klantenportaal** is daarom de
+maatstaf, niet de website: paneelkoppen als eyebrow (12 px caps) in plaats van een kop van 22 px,
+24 px vulling in plaats van 32, rijtekst op 14 px, en rijen gescheiden door een haarlijn in plaats
+van elk in hun eigen kaart. Een productnaam staat niet in kapitalen — "24x33cl" moet leesbaar
+blijven.
+
+Twee dingen uit het systeem kunnen hier niet, allebei door de CSP (`script-src 'self'`,
+`style-src 'self'`), en die blijft zoals ze is:
+
+* **Fonts.** Het systeem laadt Oswald, Source Sans 3, Parisienne en Prata bij Google Fonts. Die
+  staan hier lokaal in `app/fonts/` — de originele woff2-bestanden van Google, per subset apart,
+  zodat een browser enkel ophaalt wat een scherm echt gebruikt. Oswald en Source Sans (latin) zitten
+  in de offline-voorraad; de rest komt vanzelf. Komen er ooit gelicentieerde merkfonts, dan hoeven
+  enkel die bestanden en de `@font-face`-regels bovenaan `tokens.css` te wijzigen.
+* **Iconen.** Het systeem gebruikt Lucide via een CDN. Dat kan niet, en natekenen mag niet van het
+  systeem zelf. De tool gebruikt vandaag geen iconen; komen ze er, dan worden de echte
+  Lucide-bestanden lokaal meegeleverd.
 
 ### Het logo in de kop
 
-Zet het JE Concept-logo als **`app/logo.svg`** (`logo.png` of `logo.webp` mag ook) in de repository.
-Bij het bouwen komt het dan automatisch in de kop van elk scherm, in plaats van de tekst
-"Besteltool JE Concept"; er is verder niets aan te passen. Zolang het bestand er niet staat, blijft
-de tekst staan — zo hangt er nooit een kapotte afbeelding in de kop. `build.py` zegt bij elke bouw
-welk van de twee het geworden is.
+`app/logo.png` is het merkteken uit het designsysteem. Bij het bouwen komt het automatisch in de kop
+van elk scherm in plaats van het woordmerk. In de kopbalk staat het **uitgespaard in wit**
+(`filter: brightness(0) invert(1)`) — dat is de enige behandeling die het systeem toestaat. Op het
+aanmeldscherm staat het in kleur op de witte kaart.
 
-Het logo wordt getoond op 40 pixels hoog (32 op een telefoon). Omdat het JE Concept-logo
-donkerblauw is en de kopbalk dat ook, staat het op een licht plaatje; lever je ooit een
-uitgespaarde (witte) versie, dan mag `.brand--logo { background: … }` in `app.css` weg. Een SVG
-heeft de voorkeur boven een PNG: die blijft scherp op elk scherm en weegt bijna niets.
+Het bestand is een PNG van 375 px, afgeleid van een JPEG; bij grote formaten zijn de randen zacht.
+Een **SVG** zou dat oplossen: zet die als `app/logo.svg` en `build.py` pikt hem vanzelf op.
+
+### De night-scope
+
+`.je-night` zet een heel vlak om naar donkere navy. Het aanmeldscherm gebruikt die scope; de
+kopbalk is vast donker. Meer donkere vlakken heeft de tool niet, en het systeem kent geen
+automatische donkere modus.
 
 ## Structuur
 
@@ -254,7 +281,10 @@ seed.sql               voorbeelddata om lokaal mee te spelen
 seed-vinne.sql         de catalogus van Bistro het Vinne (eenmalig op de databank)
 build.py               app/ → dist/ met een inhoudshash op CSS en JS
 app/
-  css/tokens.css       het volledige design-system: kleuren, fonts, ruimte, vorm
+  css/tokens.css       de tokens van het designsysteem + de brug naar app.css
+  css/components.css   components.css van het designsysteem, onveranderd
+  fonts/               Oswald, Source Sans 3, Parisienne, Prata (lokaal, per subset)
+  logo.png             het merkteken; build.py zet het in de kop
   css/app.css          de componenten van de tool (gebruikt enkel tokens)
   js/                  vanilla modules per scherm + xlsx-read.js (kassabestand inlezen)
   sw.js                service worker: de tool blijft werken zonder bereik

@@ -61,7 +61,9 @@ self.addEventListener('fetch', (event) => {
     if (url.pathname === '/api/catalog') event.respondWith(networkFirst(request));
     return;
   }
-  if (url.pathname.startsWith('/css/') || url.pathname.startsWith('/js/') || url.pathname.startsWith('/icon-')) {
+  // fonts en logo veranderen niet binnen een versie: altijd uit de cache
+  if (url.pathname.startsWith('/css/') || url.pathname.startsWith('/js/') || url.pathname.startsWith('/icon-')
+      || url.pathname.startsWith('/fonts/') || url.pathname === '/logo.png') {
     return event.respondWith(cacheFirst(request));
   }
   if (request.mode === 'navigate') {
