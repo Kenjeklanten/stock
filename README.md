@@ -31,15 +31,32 @@ Voorbeeld: basisstock 48 flessen, bak van 24, geteld 1 pak + 6 los = 30 → teko
 
 | Pagina | Waarvoor |
 |---|---|
-| `/dashboard` | Overzicht van de dag: welke locaties geteld zijn, wat er vandaag te bestellen is per leverancier, en elke levering die nog nagekeken moet worden — ook als er nog niet op "markeer als besteld" geduwd is. |
+| `/dashboard` | Overzicht van de dag, en niet meer dan dat: waar moet nog geteld worden, wat moet er besteld worden, welke leveringen moeten nagekeken worden. |
 | `/` | Bedrijf en locatie kiezen, per product de volle pakken en losse stuks invullen. Toont meteen wat besteld wordt. Werkt ook zonder verbinding. |
 | `/bestelling?id=…` | Het resultaat: bestelregels per leverancier, met de bestellijst in Excel (één telling of de hele dag), de bestelbon in PDF, CSV en "markeer als besteld". |
 | `/leveringen` | Alle bestellingen die nog nagekeken moeten worden, en de leveringen die al afgesloten zijn met hun afwijkingen. |
 | `/ontvangst?id=…` | Levering inboeken: wat er effectief geleverd is, met het verschil tegenover de bestelling. |
 | `/historiek` | Alle tellingen van het gekozen bedrijf; opnieuw downloaden of aanpassen kan altijd. |
-| `/stock` | Wat er nu in huis is per toog, met de tijdlijn per product en het boeken van bewegingen die niet uit een telling of levering volgen. |
+| `/stock` | Wat er nu in huis is per toog, de laatste bewegingen, de tijdlijn per product, en het boeken van bewegingen die niet uit een telling of levering volgen. |
 | `/verkoop` | Kassarapport inlezen, de kassanamen koppelen aan producten en togen, en het verschil tussen verbruik en verkoop bekijken. |
 | `/beheer` | Producten met basisstock per locatie, locaties, leveranciers (met hun WhatsApp-nummer), redenen, het WhatsApp-bericht en logboek, de toegangscodes en de bedrijven. |
+
+## Eén scherm, één vraag
+
+Elk scherm hoort één vraag te beantwoorden; wat elders al staat, staat hier niet nog eens.
+Het overzicht droeg zeven blokken en beantwoordde er zeven tegelijk. Wat waar terechtgekomen is:
+
+| Stond op het overzicht | Staat nu |
+|---|---|
+| Nog te tellen · vandaag te bestellen · leveringen na te kijken | **blijft** — dit is het werk van vandaag |
+| Stand van de stock · laatste bewegingen | `/stock` |
+| Leveringen die niet klopten | `/leveringen`, bij de afgesloten leveringen |
+| Tellingen per locatie | `/historiek`, en het actuele stuk staat in "nog te tellen" |
+| Catalogus staat scheef (geen basisstock, geen leverancier) | **Beheer → Producten**, waar je het meteen kan rechtzetten |
+
+Dat scheelt ook de zwaarste berekening van de tool: `huidigeStock` over alle producten en alle
+togen draaide bij élke keer dat het overzicht geopend werd, voor een blok dat op `/stock` al
+stond.
 
 ## Twee gezichten: tellen of beheren
 

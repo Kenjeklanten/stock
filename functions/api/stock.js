@@ -106,5 +106,21 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
     if (!locationId || !productId) throw new HttpError('Kies een locatie en een product.');
     return json(await tijdlijn(D, companyId, locationId, productId));
   }
-  return json({ stock: await huidigeStock(D, companyId, { locationId }) });
+  // De laatste bewegingen stonden op het dashboard, maar horen hier: dit is de pagina waar ze
+  // ook geboekt worden.
+  const bewegingen = await D.prepare(
+    `SELECT m.id, m.qty, m.moved_on, m.note, m.created_by, l.name AS location_name,
+            p.name AS product_name, p.unit, r.name AS reason_name
+       FROM stock_moves m
+       JOIN locations l ON l.id = m.location_id
+       LEFT JOIN products p ON p.id = m.product_id
+       LEFT JOIN stock_reasons r ON r.id = m.reason_id
+      WHERE m.company_id = ?1
+      ORDER BY m.moved_on DESC, m.id DESC LIMIT 15`
+  ).bind(companyId).all();
+
+  return json({
+    stock: await huidigeStock(D, companyId, { locationId }),
+    moves: bewegingen.results || [],
+  });
 });

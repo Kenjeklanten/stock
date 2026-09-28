@@ -121,8 +121,31 @@ function newProductForm(activeLocations) {
   ]);
 }
 
+/**
+ * Wat er scheef staat in de catalogus. Dit stond op het overzicht van de dag, maar daar kon je
+ * er niets mee: het hoort hier, waar je het meteen kan rechtzetten. Beide vragen zijn te
+ * beantwoorden met wat dit scherm toch al geladen heeft.
+ */
+function catalogusWaarschuwingen() {
+  const meldingen = [];
+  const zonderBasis = state.locations
+    .filter((l) => l.active && !state.products.some((p) => p.base && p.base[l.id] !== undefined))
+    .map((l) => l.name);
+  if (zonderBasis.length) {
+    meldingen.push(`${zonderBasis.join(', ')} ${zonderBasis.length === 1 ? 'heeft' : 'hebben'} nog geen basisstock — daar kan niet geteld worden.`);
+  }
+  const losse = state.products.filter((p) => p.active !== 0 && !p.supplier_id).length;
+  if (losse) {
+    meldingen.push(`${plural(losse, 'product staat', 'producten staan')} zonder leverancier; die komen op een aparte bestelbon.`);
+  }
+  if (!meldingen.length) return null;
+  return el('div', { class: 'notice notice--warn' }, [el('ul', {}, meldingen.map((m) => el('li', { text: m })))]);
+}
+
 function renderProducts(panel) {
   const activeLocations = state.locations.filter((l) => l.active);
+  const scheef = catalogusWaarschuwingen();
+  if (scheef) panel.append(scheef);
   panel.append(newProductForm(activeLocations));
   if (!activeLocations.length) {
     panel.append(el('div', { class: 'notice', text: 'Maak eerst een locatie aan; daarna kan je per locatie een basisstock invullen.' }));

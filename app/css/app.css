@@ -70,6 +70,9 @@ textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
 .grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .spacer { margin-left: auto; }
 .hidden { display: none !important; }
+/* Een eigen display-regel verslaat het hidden-attribuut van de browser. Dat gebeurde bij
+   .row: die is display:flex en bleef dus staan met hidden erop. */
+[hidden] { display: none !important; }
 
 /* Wie wat te zien krijgt.
    De klassen op <html> komen van de server (zie functions/_middleware.js), dus ze staan er al
@@ -248,7 +251,9 @@ input[disabled], select[disabled], textarea[disabled] { opacity: .45; pointer-ev
 .tag--danger, .tag--coral { color: var(--danger); border-color: currentColor; background: var(--status-danger-soft); }
 
 /* ---------- kengetallen ---------- */
-.kpis { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
+/* Een kengetal is een tegel, geen balk: bij twee stuks mogen ze niet over de hele breedte
+   uitrekken. */
+.kpis { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(9rem, 16rem)); justify-content: start; }
 .kpi {
   border: var(--border-w-hair) solid var(--border-hairline); border-radius: var(--radius-card);
   padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2);

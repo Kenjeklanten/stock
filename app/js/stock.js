@@ -6,7 +6,7 @@ import { api, toast, fmt, num, el, clear, qs, params, mountHeader, dateNl, today
 const state = {
   companyId: null, canManage: false,
   locations: [], products: [], reasons: [],
-  stock: [], locationId: null, zoek: '',
+  stock: [], moves: [], locationId: null, zoek: '',
 };
 
 const SOORT = {
@@ -169,6 +169,19 @@ function bewegingsForm() {
 async function laadStock() {
   const res = await api(`/api/stock?company_id=${state.companyId}${state.locationId ? `&location_id=${state.locationId}` : ''}`);
   state.stock = res.stock || [];
+  state.moves = res.moves || [];
+}
+
+/** De laatste handmatige bewegingen: drank die zonder telling of levering wegging of bijkwam. */
+function laatsteBewegingen() {
+  if (!state.moves.length) return null;
+  return el('section', { class: 'card' }, [
+    el('div', { class: 'card__head' }, [el('h2', { text: 'Laatste bewegingen' })]),
+    el('ul', { class: 'small' }, state.moves.map((m) => el('li', {
+      text: `${dateNl(m.moved_on)} · ${m.location_name} · ${m.product_name}: ${m.qty > 0 ? '+' : ''}${fmt(m.qty)} ${m.unit || 'stuk'}`
+        + ` — ${m.reason_name || 'handmatige aanpassing'}${m.note ? ` (${m.note})` : ''}`,
+    }))),
+  ]);
 }
 
 function stockTabel(rijen) {
@@ -246,6 +259,8 @@ function render() {
 
   const lijst = el('div', {});
   content.append(lijst);
+  const bewegingen = laatsteBewegingen();
+  if (bewegingen) content.append(bewegingen);
 
   const teken = () => {
     clear(lijst);

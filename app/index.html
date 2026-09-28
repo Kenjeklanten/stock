@@ -68,6 +68,9 @@
 
   <form id="count-form" novalidate>
     <div id="list"><p class="skeleton">Kies eerst een locatie.</p></div>
+    <div class="row mt-2" id="reset-rij" hidden>
+      <button type="button" class="btn btn--ghost btn--sm" id="btn-reset">Alles leegmaken</button>
+    </div>
   </form>
 </main>
 
@@ -76,7 +79,6 @@
     <span class="stat"><b id="stat-counted">0</b> van <span id="stat-total">0</span> geteld</span>
     <span class="stat"><b id="stat-order">0</b> te bestellen</span>
     <span class="spacer"></span>
-    <button type="button" class="btn btn--ghost" id="btn-reset">Leegmaken</button>
     <button type="button" class="btn" id="btn-save">Bestelling opmaken</button>
   </div>
 </div>

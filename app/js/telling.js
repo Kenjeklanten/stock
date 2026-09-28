@@ -171,12 +171,16 @@ async function loadLocation(locationId, { keepValues = false } = {}) {
     state.products = [];
     render(); updateStats();
     qs('#controls').hidden = true;
+    qs('#reset-rij').hidden = true;
     return;
   }
   qs('#list').replaceChildren(el('p', { class: 'skeleton', text: 'Producten laden…' }));
   const data = await api(`/api/catalog?company_id=${state.companyId}&location_id=${encodeURIComponent(locationId)}`);
   state.products = data.products || [];
-  qs('#controls').hidden = !state.products.length;
+  // Zoeken en filteren helpen pas bij een lange lijst. Bij een toog met twintig producten is
+  // het ruis; in de keuken van het Vinne (negentig) is het nodig.
+  qs('#controls').hidden = state.products.length < 25;
+  qs('#reset-rij').hidden = !state.products.length;
 
   if (!keepValues) {
     state.values = new Map();
@@ -283,6 +287,7 @@ function bevestig() {
   const teBestellen = num(qs('#stat-order').textContent, 0) || 0;
   qs('#bar').hidden = true;
   qs('#controls').hidden = true;
+  qs('#reset-rij').hidden = true;
   qs('#note-fold').hidden = true;
   clear(qs('#messages'));
   qs('#list').replaceChildren(el('section', { class: 'card' }, [
@@ -330,6 +335,9 @@ async function fillLocations() {
 async function init() {
   const header = await mountHeader('telling');
   state.enkelTellen = header.enkelTellen === true;
+  // De knop hoort te zeggen wat er gebeurt: een teller bewaart een telling, wie bestelt komt
+  // op de bestelbon uit.
+  if (state.enkelTellen) qs('#btn-save').textContent = 'Telling bewaren';
   state.companyId = header.companyId;
   qs('#today').textContent = dateNl(today());
 

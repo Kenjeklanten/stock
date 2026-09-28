@@ -499,7 +499,6 @@ test('overzicht: wat er vandaag geteld en te bestellen is', async () => {
   const leeg = await asJson(await dashboardApi.onRequestGet(ctx(env, { url: `https://x/api/dashboard?company_id=${ids.co}` })));
   assert.equal(leeg.counted_today.length, 0);
   assert.deepEqual(leeg.not_counted_today.map((l) => l.name), ['Bar tribune 1', 'Magazijn']);
-  assert.match(leeg.warnings.join(' '), /Servetten|zonder leverancier/);
 
   // twee tellingen van vandaag op dezelfde locatie zouden dubbel tellen; hier één telling
   const { id } = await asJson(await countsApi.onRequestPost(ctx(env, {
@@ -526,14 +525,16 @@ test('overzicht: wat er vandaag geteld en te bestellen is', async () => {
   assert.equal(dash.open_orders[0].location_name, 'Bar tribune 1');
   assert.equal(dash.open_orders[0].status, 'besteld');
 
-  // een levering die niet klopt, komt in het overzicht
+  // een nagekeken levering verdwijnt van het overzicht; de afwijking zelf staat op /leveringen
   await receiptApi.onRequestPut(ctx(env, {
     method: 'PUT', params: { id: String(id) }, body: { lines: [{ product_id: ids.cola, packs: 0, loose: 12 }], complete: true },
   }));
   dash = await asJson(await dashboardApi.onRequestGet(ctx(env, { url: `https://x/api/dashboard?company_id=${ids.co}` })));
   assert.equal(dash.open_orders.length, 0, 'nagekeken leveringen staan niet meer open');
-  assert.equal(dash.differences.length, 1);
-  assert.equal(dash.differences[0].diff, -12);
+
+  // het overzicht draagt enkel nog wat je vandaag nodig hebt
+  assert.deepEqual(Object.keys(dash).sort(),
+    ['company', 'counted_today', 'locations', 'not_counted_today', 'open_orders', 'to_order', 'today']);
 });
 
 test('kassanamen herkennen: inhoud, product en toog', () => {
@@ -663,7 +664,13 @@ test('actuele stock: telling, levering, handmatige beweging en verkoop bij elkaa
   }));
   assert.equal(beweging.status, 201);
 
-  stock = (await asJson(await stockApi.onRequestGet(ctx(env, { url: `https://x/api/stock?company_id=${ids.co}&location_id=${ids.loc}` })))).stock;
+  const na = await asJson(await stockApi.onRequestGet(ctx(env, { url: `https://x/api/stock?company_id=${ids.co}&location_id=${ids.loc}` })));
+  stock = na.stock;
+  // de laatste bewegingen stonden op het dashboard en horen nu bij de stock zelf
+  assert.equal(na.moves.length, 1);
+  assert.equal(na.moves[0].reason_name, 'Drank Rode Kruis');
+  assert.equal(na.moves[0].qty, -48);
+  assert.equal(na.moves[0].product_name, 'Cola 33cl');
   cola = stock.find((r) => r.product_id === ids.cola);
   assert.equal(cola.geleverd, 24);
   assert.equal(cola.bewegingen, -48);

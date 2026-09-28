@@ -1,13 +1,17 @@
 /**
  * GET /api/dashboard?company_id=1
  *
- * Eén blik op de dag: waar is er geteld, wat moet er nog besteld worden, wat is er nog niet
- * nagekeken, en waar zit er iets scheef in de catalogus.
+ * Eén blik op de dag, en niet meer dan dat: waar moet nog geteld worden, wat moet er besteld
+ * worden, en welke leveringen moeten nagekeken worden.
+ *
+ * Wat hier vroeger ook stond, staat nu waar het hoort: de stand van de stock en de laatste
+ * bewegingen op /stock, de afwijkingen op /leveringen, en wat er scheef staat in de catalogus
+ * bij Beheer. Dat scheelt ook de zwaarste berekening van de tool — huidigeStock over alles —
+ * op een scherm dat bij elke paginawissel geladen wordt.
  */
 import { json, handler, db, int, today, HttpError } from '../_lib/http.js';
 import { scopeFor, requireCompany, visibleCompanies } from '../_lib/access.js';
-import { orderPacks, receiptDiff, round2 } from '../_lib/order.js';
-import { huidigeStock } from '../_lib/stock.js';
+import { orderPacks } from '../_lib/order.js';
 import { openLeveringen } from '../_lib/delivery.js';
 
 export const onRequestGet = handler(async ({ request, env, data }) => {
@@ -25,7 +29,7 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
   requireCompany(scope, companyId);
   const day = today();
 
-  const [company, locations, recent, openOrders, teBestellen, afwijkingen, zonderBasis, zonderLeverancier] = await Promise.all([
+  const [company, locations, recent, openOrders, teBestellen] = await Promise.all([
     D.prepare('SELECT id, name FROM companies WHERE id = ?1').bind(companyId).first(),
 
     // per locatie de laatste telling
@@ -65,27 +69,6 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
         ORDER BY IFNULL(s.sort, 999), supplier_name, cl.product_name`
     ).bind(companyId, day).all(),
 
-    // leveringen die niet klopten
-    D.prepare(
-      `SELECT c.id, c.counted_on, l.name AS location_name, cl.product_name, p.unit,
-              cl.order_qty, cl.received_qty
-         FROM count_lines cl
-         JOIN counts c        ON c.id = cl.count_id
-         JOIN locations l     ON l.id = c.location_id
-         LEFT JOIN products p ON p.id = cl.product_id
-        WHERE c.company_id = ?1 AND cl.received_qty IS NOT NULL AND cl.received_qty <> cl.order_qty
-        ORDER BY c.counted_on DESC, cl.product_name LIMIT 25`
-    ).bind(companyId).all(),
-
-    D.prepare(
-      `SELECT l.name FROM locations l
-        WHERE l.company_id = ?1 AND l.active = 1
-          AND NOT EXISTS (SELECT 1 FROM par_levels pl WHERE pl.location_id = l.id)`
-    ).bind(companyId).all(),
-
-    D.prepare(
-      'SELECT COUNT(*) AS n FROM products WHERE company_id = ?1 AND active = 1 AND supplier_id IS NULL'
-    ).bind(companyId).first(),
   ]);
 
   // te bestellen per leverancier bundelen
@@ -99,39 +82,6 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
     group.units += Number(row.order_qty);
   }
 
-  const warnings = [];
-  for (const row of zonderBasis.results || []) {
-    warnings.push(`${row.name} heeft nog geen basisstock — daar kan niet geteld worden.`);
-  }
-  if (zonderLeverancier && zonderLeverancier.n) {
-    warnings.push(`${zonderLeverancier.n} ${zonderLeverancier.n === 1 ? 'product staat' : 'producten staan'} zonder leverancier; die komen op een aparte bestelbon.`);
-  }
-
-  // de stand van de stock, samengevat per locatie
-  const stock = await huidigeStock(D, companyId);
-  const perLocatie = new Map();
-  for (const r of stock) {
-    if (!perLocatie.has(r.location_id)) {
-      perLocatie.set(r.location_id, { location_id: r.location_id, location_name: r.location_name, producten: 0, onder_basis: 0, leeg: 0, counted_on: r.counted_on });
-    }
-    const vak = perLocatie.get(r.location_id);
-    vak.producten += 1;
-    if (r.base_qty !== null && r.nu < r.base_qty) vak.onder_basis += 1;
-    if (r.nu <= 0) vak.leeg += 1;
-    if (r.counted_on > vak.counted_on) vak.counted_on = r.counted_on;
-  }
-
-  const bewegingen = await D.prepare(
-    `SELECT m.id, m.qty, m.moved_on, m.note, m.created_by, l.name AS location_name,
-            p.name AS product_name, p.unit, r.name AS reason_name
-       FROM stock_moves m
-       JOIN locations l ON l.id = m.location_id
-       LEFT JOIN products p ON p.id = m.product_id
-       LEFT JOIN stock_reasons r ON r.id = m.reason_id
-      WHERE m.company_id = ?1
-      ORDER BY m.moved_on DESC, m.id DESC LIMIT 10`
-  ).bind(companyId).all();
-
   const counted = new Set((recent.results || []).map((c) => c.location_name));
   const missing = (locations.results || []).filter((l) => !counted.has(l.name));
 
@@ -142,11 +92,6 @@ export const onRequestGet = handler(async ({ request, env, data }) => {
     counted_today: recent.results || [],
     not_counted_today: missing.map((l) => ({ id: l.id, name: l.name })),
     open_orders: openOrders,
-    stock: [...perLocatie.values()],
-    stock_totaal: round2(stock.reduce((a, r) => a + r.nu, 0)),
-    moves: bewegingen.results || [],
     to_order: [...suppliers.values()],
-    differences: (afwijkingen.results || []).map((r) => ({ ...r, unit: r.unit || 'stuk', diff: receiptDiff(r.order_qty, r.received_qty) })),
-    warnings,
   });
 });
