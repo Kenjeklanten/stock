@@ -41,6 +41,27 @@ Voorbeeld: basisstock 48 flessen, bak van 24, geteld 1 pak + 6 los = 30 → teko
 | `/verkoop` | Kassarapport inlezen, de kassanamen koppelen aan producten en togen, en het verschil tussen verbruik en verkoop bekijken. |
 | `/beheer` | Producten met basisstock per locatie, locaties, leveranciers (met hun WhatsApp-nummer), redenen, het WhatsApp-bericht en logboek, de toegangscodes en de bedrijven. |
 
+## Twee gezichten: tellen of beheren
+
+De rol van de toegangscode bepaalt wat iemand te zien krijgt, en dat is meer dan een menu-item
+verbergen.
+
+**Een code met rol *teller*** krijgt **één scherm**: het telformulier. Geen navigatie, geen
+bedrijfskiezer, geen andere pagina's. Vraagt zo'n code toch een ander adres op, dan stuurt de
+middleware door naar `/` — het zit dus in de server, niet enkel in het scherm. Na het bewaren
+komt er een bevestiging ("Toog 5 is geteld") met één knop, *Nog een toog tellen*; de bestelbon
+met zijn exports is voor wie bestelt.
+
+**Een code met rol *beheerder*** krijgt alles waar die code recht op heeft, zoals voordien.
+
+Welke klassen daarbij horen, zet de middleware meteen op `<html>`: `enkel-tellen`,
+`mag-beheren`, `mag-alles`. `app.css` verbergt standaard alles wat niet voor iedereen is en die
+klassen zetten het terug aan. Dat is bewust die richting op: het menu stond in de HTML en werd
+pas verborgen nadat `/api/catalog` geantwoord had, waardoor bij elke paginawissel het volledige
+menu voorbijflitste — ook bij iemand die het niet mocht zien. Nu staat het goed vanaf het eerste
+byte. Het scherm mag achteraf nog versmallen (het weet pas later welk bedrijf gekozen is);
+verbergen mag te ruim zijn, tonen niet.
+
 ## Van bestelling naar levering
 
 Een telling wordt een bestelling, en die bestelling wordt nagekeken als de bakken binnenkomen.

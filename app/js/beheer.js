@@ -679,7 +679,6 @@ async function init() {
   state.companyId = header.companyId;
   state.canManage = header.canManage;
   state.superAdmin = header.superAdmin;
-  if (!state.superAdmin) qsa('[data-super-only]').forEach((n) => n.classList.add('hidden'));
   await refresh();
   if (state.superAdmin) await Promise.all([loadCodes(), loadAdmins()]);
   if (state.companyId && state.canManage) await loadWhatsapp();

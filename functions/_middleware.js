@@ -89,7 +89,52 @@ function cookie(request, name) {
  * Geeft { gate } terug als het verzoek geweigerd wordt, of { code } met de code waarmee deze
  * browser binnen is — die bepaalt verderop mee welke rechten er gelden.
  */
-const OPEN_PADEN = ['/login', '/aanmelden', '/css/', '/js/', '/icon-', '/favicon.svg', '/manifest.webmanifest', '/sw.js'];
+const OPEN_PADEN = ['/login', '/aanmelden', '/css/', '/js/', '/fonts/', '/logo.', '/icon-', '/favicon.svg', '/manifest.webmanifest', '/sw.js'];
+
+/**
+ * Een code die enkel mag tellen, krijgt enkel het telformulier.
+ *
+ * Dit staat hier en niet enkel in het scherm, zodat een adres intikken niets oplevert. Wie met
+ * zo'n code een andere pagina opvraagt, komt op het telformulier terecht. De API's blijven
+ * gewoon open waar tellen ze nodig heeft — het gaat hier om schermen, niet om rechten.
+ */
+function tellerGate(request, url, code) {
+  if (!code || code.role !== 'teller') return null;
+  if (url.pathname === '/' || url.pathname.startsWith('/api/')) return null;
+  if (OPEN_PADEN.some((pad) => url.pathname === pad || url.pathname.startsWith(pad))) return null;
+  if (!(request.headers.get('accept') || '').includes('text/html')) return null;
+  return new Response(null, { status: 302, headers: { location: '/', 'cache-control': 'no-store' } });
+}
+
+/**
+ * Wat deze code mag, als klassen op <html>.
+ *
+ * Het menu staat in de HTML; zonder dit werd het pas verborgen nadat /api/catalog geantwoord
+ * had, en flitste het volledige menu voorbij bij elke paginawissel. De server weet het al bij
+ * het eerste byte, dus zetten we het daar. De CSS in app.css verbergt standaard alles wat niet
+ * voor iedereen is; deze klassen zetten het terug aan.
+ *
+ * `mag-beheren` is hier een bovengrens: het scherm weet pas welk bedrijf gekozen is en kan het
+ * daarna nog versmallen. Verbergen mag te ruim zijn, tonen niet — vandaar deze richting.
+ */
+function rolKlassen(code) {
+  if (!code) return 'mag-beheren mag-alles';          // geen code ingesteld: alles staat open
+  if (code.role !== 'beheerder') return 'enkel-tellen';
+  return code.company_id ? 'mag-beheren' : 'mag-beheren mag-alles';
+}
+
+/** Hangt die klassen aan <html> van een paginaantwoord. */
+function metRol(response, code) {
+  if (!(response.headers.get('content-type') || '').includes('text/html')) return response;
+  return new HTMLRewriter()
+    .on('html', {
+      element(el) {
+        const bestaand = el.getAttribute('class');
+        el.setAttribute('class', `${bestaand ? `${bestaand} ` : ''}${rolKlassen(code)}`);
+      },
+    })
+    .transform(response);
+}
 
 async function pinGate(request, env, url) {
   if (!env.DB) return {};
@@ -169,17 +214,24 @@ export async function onRequest(context) {
   // Aangemeld met een Google-account van het beheerdersdomein.
   const beheerder = await accessBeheerder(request, env);
   if (beheerder) {
+    const rechten = await rechtenVan(env, beheerder);
+    // Ook wie met een account aanmeldt kan in de lijst op "enkel tellen" staan; dan geldt
+    // dezelfde beperking als bij een tellercode.
+    const beperkt = tellerGate(request, url, rechten);
+    if (beperkt) return beperkt;
     data.user = {
       email: beheerder,
       protected: true,
       admin_login: true,
-      code: await rechtenVan(env, beheerder),
+      code: rechten,
     };
-    return next();
+    return metRol(await next(), rechten);
   }
 
   const { gate, code } = await pinGate(request, env, url);
   if (gate) return gate;
+  const naarTellen = tellerGate(request, url, code);
+  if (naarTellen) return naarTellen;
   data.user = {
     email: '',
     protected: false,
@@ -188,5 +240,5 @@ export async function onRequest(context) {
     admin_domain: beheerDomein(env),
     code: code || null,
   };
-  return next();
+  return metRol(await next(), code || null);
 }

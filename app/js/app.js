@@ -224,6 +224,19 @@ export const company = {
  * Navigatie markeren, tonen wie ingelogd is en de bedrijfskiezer vullen.
  * Geeft { user, companies, companyId } terug; companyId is null zolang er geen bedrijf bestaat.
  */
+/* ---------- wat dit toestel mag zien ---------- */
+/**
+ * Past het menu aan op wat deze code mag, met dezelfde klassen die de server al op <html>
+ * gezet heeft. De server werkt met een bovengrens (die weet niet welk bedrijf gekozen is);
+ * hier versmallen we zodra dat wél bekend is.
+ */
+function toonVolgensRol({ canManage = false, superAdmin = false, rol = null } = {}) {
+  const el = document.documentElement;
+  el.classList.toggle('mag-beheren', canManage);
+  el.classList.toggle('mag-alles', superAdmin);
+  el.classList.toggle('enkel-tellen', rol === 'teller');
+}
+
 export async function mountHeader(active) {
   qsa('.topbar nav a').forEach((a) => {
     if (a.dataset.page === active) a.setAttribute('aria-current', 'page');
@@ -275,9 +288,15 @@ export async function mountHeader(active) {
   const manageable = (data.user && data.user.manageable) || 'all';
   result.canManage = manageable === 'all' || (result.companyId !== null && manageable.includes(result.companyId));
   result.superAdmin = !data.user || data.user.super_admin !== false;
-  if (!result.canManage) qsa('[data-admin-only]').forEach((n) => n.classList.add('hidden'));
+  const rol = (data.user && data.user.code && data.user.code.role) || null;
+  result.rol = rol;
+  result.enkelTellen = rol === 'teller';
+  toonVolgensRol({ canManage: result.canManage, superAdmin: result.superAdmin, rol });
 
   if (select) {
+    // Eén bedrijf is geen keuze: dan verdwijnt de kiezer. Bij een tellercode altijd.
+    const kiezer = select.closest('.company-picker');
+    if (kiezer) kiezer.classList.toggle('hidden', result.enkelTellen || active_companies.length <= 1);
     clear(select);
     if (!active_companies.length) {
       select.append(el('option', { value: '', text: 'Nog geen bedrijf' }));

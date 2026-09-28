@@ -70,6 +70,16 @@ textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
 .grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .spacer { margin-left: auto; }
 .hidden { display: none !important; }
+
+/* Wie wat te zien krijgt.
+   De klassen op <html> komen van de server (zie functions/_middleware.js), dus ze staan er al
+   bij het eerste byte. Daarom verbergen we standaard en tonen we pas met een klasse: anders
+   flitst het volledige menu voorbij bij elke paginawissel voor iemand die het niet mag zien.
+   Het scherm kan later nog versmallen zodra bekend is welk bedrijf gekozen is. */
+html:not(.mag-beheren) [data-admin-only],
+html:not(.mag-alles) [data-super-only] { display: none !important; }
+/* Een code die enkel mag tellen, krijgt één scherm: geen menu, geen bedrijfskiezer. */
+.enkel-tellen .topbar nav, .enkel-tellen .company-picker { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* ---------- kop ---------- */

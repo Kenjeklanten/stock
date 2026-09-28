@@ -250,6 +250,7 @@ async function save() {
       ? await api(`/api/counts/${state.countId}`, { method: 'PUT', body: payload })
       : await api('/api/counts', { method: 'POST', body: payload });
     draft.clear(state.locationId, payload.counted_on);
+    if (state.enkelTellen) return bevestig();
     location.href = `/bestelling?id=${state.countId || result.id}`;
   } catch (err) {
     // Geen bereik? De telling gaat niet verloren: ze blijft op dit toestel staan en vertrekt
@@ -269,6 +270,32 @@ async function save() {
     }
     button.disabled = false;
   }
+}
+
+/**
+ * Klaar. Een vrijwilliger hoort hier geen bestelbon te zien: die is voor wie bestelt. Wat hij
+ * wél moet weten is dat het bewaard is, en waar hij verder kan.
+ */
+function bevestig() {
+  const keuze = qs('#location');
+  const naam = (keuze && keuze.selectedOptions[0] && keuze.selectedOptions[0].textContent) || 'Deze locatie';
+  // het aantal staat al in de balk onderaan, berekend uit wat er geteld is
+  const teBestellen = num(qs('#stat-order').textContent, 0) || 0;
+  qs('#bar').hidden = true;
+  qs('#controls').hidden = true;
+  qs('#note-fold').hidden = true;
+  clear(qs('#messages'));
+  qs('#list').replaceChildren(el('section', { class: 'card' }, [
+    el('div', { class: 'card__head' }, [el('h2', { text: 'Bewaard' })]),
+    el('p', {}, [el('b', { text: `${naam} is geteld.` })]),
+    el('p', { class: 'muted small mt-1', text: teBestellen
+      ? `${teBestellen} ${teBestellen === 1 ? 'product komt' : 'producten komen'} op de bestelling. Daar zorgt de zaakvoerder voor.`
+      : 'Alles staat op basisstock — er hoeft niets besteld te worden.' }),
+    el('div', { class: 'row mt-2' }, [
+      el('button', { class: 'btn', text: 'Nog een toog tellen', onclick: () => { location.href = '/'; } }),
+    ]),
+  ]));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 /**
@@ -302,6 +329,7 @@ async function fillLocations() {
 
 async function init() {
   const header = await mountHeader('telling');
+  state.enkelTellen = header.enkelTellen === true;
   state.companyId = header.companyId;
   qs('#today').textContent = dateNl(today());
 

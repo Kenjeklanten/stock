@@ -718,6 +718,52 @@ test('een beweging kan niet naar een product van een ander bedrijf', async () =>
   assert.match((await asJson(res)).error, /hoort niet bij dit bedrijf/);
 });
 
+test('een code die enkel mag tellen, krijgt enkel het telformulier', async () => {
+  const { onRequest } = await import('../functions/_middleware.js');
+  const { grantCookie } = await import('../functions/_lib/pin.js');
+  const env = { DB: createDb(schema) };
+  const ids = await seed(env);
+
+  await codesApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { code: '4321', label: 'Tellen toog', role: 'teller', company_id: ids.co },
+  }));
+  const koekje = (await grantCookie('4321', env)).split(';')[0];
+
+  const vraag = (pad, accept = 'text/html') => onRequest({
+    request: new Request(`https://stock.test${pad}`, { headers: { accept, cookie: koekje } }),
+    env, data: {}, next: () => new Response('ok'),
+  });
+
+  // het telformulier zelf blijft open
+  assert.equal((await vraag('/')).status, 200);
+
+  // elke andere pagina stuurt terug naar het telformulier
+  for (const pad of ['/dashboard', '/stock', '/leveringen', '/historiek', '/beheer', '/verkoop',
+                     '/bestelling?id=1', '/ontvangst?id=1']) {
+    const res = await vraag(pad);
+    assert.equal(res.status, 302, `${pad} hoort door te sturen`);
+    assert.equal(res.headers.get('location'), '/', `${pad} hoort naar het telformulier te gaan`);
+  }
+
+  // de API blijft wel gewoon werken: tellen heeft ze nodig
+  assert.equal((await vraag('/api/catalog', 'application/json')).status, 200);
+  // en de bestanden van de app ook, anders laadt het telformulier niet
+  for (const pad of ['/css/app.css', '/js/telling.js', '/fonts/oswald-latin.woff2', '/logo.png']) {
+    assert.equal((await vraag(pad, '*/*')).status, 200, `${pad} hoort bereikbaar te blijven`);
+  }
+
+  // een beheerderscode komt overal
+  await codesApi.onRequestPost(ctx(env, {
+    method: 'POST', body: { code: '4322', label: 'Beheer', role: 'beheerder', company_id: ids.co },
+  }));
+  const baas = (await grantCookie('4322', env)).split(';')[0];
+  const dash = await onRequest({
+    request: new Request('https://stock.test/dashboard', { headers: { accept: 'text/html', cookie: baas } }),
+    env, data: {}, next: () => new Response('ok'),
+  });
+  assert.equal(dash.status, 200, 'een beheerderscode blijft overal binnen');
+});
+
 test('Access laat enkel het beheerdersdomein binnen', async () => {
   const { onRequest } = await import('../functions/_middleware.js');
   const env = { DB: createDb(schema), ACCESS_TEAM_DOMAIN: 'jeconcept.cloudflareaccess.com', ADMIN_DOMAIN: 'kenjeklanten.be' };
